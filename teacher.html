@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KWD 숙제 · 선생님</title>
+<link rel="stylesheet" href="app.css?v=20261024150556">
+</head>
+<body>
+<div id="app"></div>
+<script src="config.js?v=20261024150556"></script>
+<script src="hangul.js?v=20261024150556"></script>
+<script src="ui.js?v=20261024150556"></script>
+<script src="charts.js?v=20261024150556"></script>
+<script src="criteria.js?v=20261024150556"></script>
+<script src="teacher.js?v=20261024150556"></script>
+<script>
+  (function () {
+    // 선생님 키는 이 브라우저에만 저장. 링크의 #t= (해시는 서버로 안 감)로 한 번 넣으면 주소에서 지움. 저장소·코드에는 없음.
+    var hm = /[#&]t=([^&]+)/.exec(location.hash), t = hm ? decodeURIComponent(hm[1]) : null;
+    if (t) { UI.store.set('hw2_tkey', t); history.replaceState(null, '', location.pathname + location.search); }
+    var key = UI.store.get('hw2_tkey', null);
+    if (!key) {
+      var app = document.getElementById('app');
+      app.innerHTML = '<div class="wrap"><div class="card"><h2>선생님 키</h2><p class="small">스크립트 속성의 TEACHER_KEY 를 붙여 넣으세요. 이 브라우저에만 저장돼요.</p></div></div>';
+      var inp = UI.el('input', { class: 'text', type: 'password', placeholder: 'TEACHER_KEY' });
+      app.querySelector('.card').appendChild(inp);
+      app.querySelector('.card').appendChild(UI.btn('저장', 'primary sm', function () { UI.store.set('hw2_tkey', inp.value.trim()); location.reload(); }));
+      return;
+    }
+    TeacherApp.mount(document.getElementById('app'), { tkey: key });
+  })();
+</script>
+</body>
+</html>

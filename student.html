@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" class="sx">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Korean with Dongjae · Today</title>
+<meta name="theme-color" content="#F6F7FB">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="app.css?v=20261024150556">
+</head>
+<body>
+<div id="app"></div>
+<script src="config.js?v=20261024150556"></script>
+<script src="hangul.js?v=20261024150556"></script>
+<script src="pron.js?v=20261024150556"></script>
+<script src="ui.js?v=20261024150556"></script>
+<script src="student.js?v=20261024150556"></script>
+<script>
+  (function () {
+    var k = UI.qs('k');
+    // 10/20 홈 화면 앱: 처음 링크로 열 때 키를 이 기기에 기억 → 홈 화면 아이콘(키 없는 주소)으로 열어도 같은 학생 (미리 보기는 기억 안 함)
+    // 기억은 60일 (쓸 때마다 다시 60일) — 공용 기기에 오래 남지 않게
+    var KEEP = 60 * 864e5, saved = UI.store.get('hw_student_key', null);
+    if (saved && (typeof saved !== 'object' || !saved.k || Date.now() - (saved.at || 0) > KEEP)) { UI.store.set('hw_student_key', null); saved = null; }
+    if (!k && !UI.PREVIEW && saved) k = saved.k;
+    if (k && !UI.PREVIEW) UI.store.set('hw_student_key', { k: k, at: Date.now() });
+    if (!k) { document.getElementById('app').innerHTML = '<div class="wrap"><div class="state" role="alert" data-act="no-key"><div class="state-ic" aria-hidden="true">!</div><h2>Link needed</h2><p class="small">Please open the link Dongjae sent you. 선생님이 보낸 링크로 열어 주세요.</p></div></div>'; return; }
+    if (UI.PREVIEW) { var bar = document.createElement('div'); bar.className = 'preview-bar'; bar.setAttribute('data-act', 'preview-bar'); bar.textContent = '선생님 미리 보기 — 학생이 보는 화면이에요. 눌러도 저장되지 않아요.'; document.body.insertBefore(bar, document.body.firstChild); }
+    StudentApp.mount(document.getElementById('app'), { key: k });
+    // 알림을 받으려면 서비스 워커가 학생 키를 알아야 함 ('받음' 기록용)
+    if (!UI.PREVIEW && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').then(function (r) { (r.active || r.waiting || r.installing) && (r.active || r.installing).postMessage && navigator.serviceWorker.ready.then(function (x) { x.active.postMessage({ type: 'key', key: k, api: HW_CONFIG.API_URL }); }); }).catch(function () {});
+  })();
+</script>
+</body>
+</html>
