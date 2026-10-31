@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>숙제 검토 · Korean with Dongjae</title>
+<meta name="theme-color" content="#2f6f5e">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="app.css">
+<style>
+  .rv-day { border: 1px solid var(--line, #ddd); border-radius: 12px; padding: 12px; margin: 10px 0; background: var(--surface, #fff); }
+  .rv-day.ok { border-color: var(--accent, #2f6f5e); }
+  .rv-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .rv-chips { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
+  .rv-blocks { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 15px; }
+  .rv-blocks th, .rv-blocks td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .rv-blocks th { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+  .rv-blocks .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .rv-blocks .why { color: var(--ink-2); overflow-wrap: anywhere; }
+  .rv-note { width: 100%; box-sizing: border-box; min-height: 44px; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--line, #ccc); }
+  .rv-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .rv-key { font-size: 13px; background: var(--surface-2, #f5f3ee); border-radius: 8px; padding: 8px; margin-top: 8px; overflow-wrap: anywhere; }
+  .rv-key .t { font-weight: 600; margin-top: 6px; }
+  .rv-stu { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 12px; margin: 6px 0; border-radius: 12px; border: 1px solid var(--line, #ddd); background: var(--surface, #fff); font: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="config.js"></script>
+<script src="ui.js"></script>
+<script src="review.js"></script>
+</body>
+</html>

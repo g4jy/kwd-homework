@@ -1,0 +1,16 @@
+{
+  "id": "./me.html",
+  "name": "Korean with Dongjae",
+  "short_name": "KWD Korean",
+  "description": "Homework, class whiteboard and word cards with Dongjae",
+  "start_url": "./me.html?app=1",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F7FB",
+  "theme_color": "#F6F7FB",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

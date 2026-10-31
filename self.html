@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Korean practice · Dongjae</title>
+<meta name="theme-color" content="#F6F7FB">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="app.css?v=20261031221719">
+<style>
+/* T146d 지난 학생 혼자 공부: 유튜브 · 단어 카드 · 단원 연습(스스로 고름). 매일 과제·채점 없음. 토큰은 app.css :root */
+.sf { max-width: 480px; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 20px 40px; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.sf h1 { font-size: 26px; line-height: 1.25; margin: 12px 0 6px; font-weight: 700; }
+.sf .sf-lead { margin: 0 0 20px; color: var(--ink-2); font-size: 15px; line-height: 1.45; }
+.sf h2 { font-size: 17px; margin: 28px 0 10px; font-weight: 700; }
+.sf-tiles { display: flex; flex-direction: column; gap: 12px; }
+.sf-tile { display: flex; align-items: center; gap: 16px; min-height: 80px; padding: 14px 18px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line);
+  color: var(--ink); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .12s ease; cursor: pointer; font: inherit; text-align: left; width: 100%; }
+.sf-tile:active { transform: scale(.98); }
+.sf-tile:focus-visible, .sf-btn:focus-visible, .sf-opt:focus-visible, .sf-ulist button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.sf-tile.sf-main { background: var(--stamp); border-color: var(--stamp); color: var(--on-stamp); }
+.sf-ic { flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); }
+.sf-tile.sf-main .sf-ic { background: rgba(255,255,255,.18); color: var(--on-stamp); }
+.sf-ic svg { width: 24px; height: 24px; }
+.sf-tt { flex: 1; min-width: 0; }
+.sf-tt b { display: block; font-size: 18px; line-height: 1.3; font-weight: 600; }
+.sf-tt span { display: block; font-size: 14px; line-height: 1.4; margin-top: 2px; color: var(--ink-2); overflow-wrap: anywhere; }
+.sf-tile.sf-main .sf-tt span { color: var(--on-stamp); opacity: .92; }
+.sf-go { flex: none; width: 20px; height: 20px; opacity: .6; }
+.sf-unit { padding: 16px 18px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.sf-unit small { display: block; font-size: 13px; color: var(--ink-2); }
+.sf-unit b { display: block; font-size: 19px; margin: 4px 0 2px; overflow-wrap: anywhere; }
+.sf-unit .sf-meta { font-size: 14px; color: var(--ink-2); }
+.sf-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.sf-btn { min-height: var(--tap); padding: 0 18px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.sf-btn.sf-pri { background: var(--stamp); border-color: var(--stamp); color: var(--on-stamp); }
+.sf-btn.sf-grow { flex: 1; }
+.sf-btn[disabled] { opacity: .45; cursor: default; }
+.sf-ulist { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.sf-ulist button { display: flex; gap: 10px; align-items: baseline; min-height: var(--tap); padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.sf-ulist button.sf-cur { border-color: var(--accent); }
+.sf-ulist .sf-no { flex: none; width: 44px; color: var(--ink-2); font-size: 13px; }
+.sf-ulist .sf-nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sf-ulist .sf-dn { flex: none; font-size: 13px; color: var(--ok); }
+.sf-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.sf-chip { min-height: 40px; min-width: 48px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.sf-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.sf-foot { margin-top: auto; padding-top: 32px; font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+/* 연습 */
+.sf-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.sf-bar .sf-btn { padding: 0 14px; }
+.sf-bar .sf-pos { flex: 1; text-align: right; font-size: 14px; color: var(--ink-2); }
+.sf-prog { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-bottom: 20px; }
+.sf-prog i { display: block; height: 100%; background: var(--accent); }
+.sf-card { padding: 20px 18px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.sf-card .sf-how { font-size: 14px; color: var(--ink-2); margin: 0 0 10px; }
+.sf-card .sf-q { font-size: 22px; line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+.sf-card .sf-q.sf-en { font-size: 19px; }
+.sf-card .sf-hint { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; overflow-wrap: anywhere; }
+.sf-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.sf-opt { min-height: var(--tap); padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; font-size: 17px; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.sf-opt.sf-ok { border-color: var(--ok); background: var(--ok-soft); }
+.sf-opt.sf-bad { border-color: var(--bad); background: var(--bad-soft); }
+.sf-ans { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.sf-ans small { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 2px; }
+textarea.sf-mine { width: 100%; box-sizing: border-box; margin-top: 14px; min-height: 64px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; font-size: 17px; resize: vertical; }
+.sf-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; }
+.sf-state h2 { font-size: 20px; margin: 0; }
+.sf-state p { margin: 0; color: var(--ink-2); font-size: 15px; }
+.sf-skel { height: 80px; border-radius: var(--radius); background: var(--surface-2); animation: sfp 1.2s ease-in-out infinite; margin-bottom: 12px; }
+@keyframes sfp { 50% { opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .sf-skel { animation: none; } .sf-tile { transition: none; } }
+</style>
+</head>
+<body>
+<div id="app" class="sf" aria-live="polite"></div>
+<script src="config.js?v=20261031221719"></script>
+<script src="self-units.js?v=20261031221719"></script>
+<script>
+(function () {
+  'use strict';
+  var app = document.getElementById('app');
+  var YT = 'https://www.youtube.com/@flykorean';
+  var FLASH = 'https://g4jy.github.io/kwd-app-preview/';   // Code.gs FLASHCARD_URL_DEFAULT 와 같음
+  var UNITS = window.SELF_UNITS || [], BY = {};
+  UNITS.forEach(function (u, i) { u.i = i; BY[u.u] = u; });
+  var PREVIEW = /(^|[#&])preview\b/.test(location.hash || '');
+  var SK = 'hw_self_key';
+  function qs(n) { var m = new RegExp('[?&]' + n + '=([^&#]*)').exec(location.search); return m ? decodeURIComponent(m[1]) : null; }
+  function get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+  function put(k, v) { if (PREVIEW) return; try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 사생활 모드 */ } }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  var IC = {
+    play: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z"/>',
+    cards: '<rect x="7" y="3" width="13" height="16" rx="2"/><path d="M4 7v12a2 2 0 0 0 2 2h10"/>',
+    pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+    go: '<path d="M9 5l7 7-7 7"/>'
+  };
+  function svg(n, cls) { return '<svg class="' + (cls || '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[n] + '</svg>'; }
+  function state(title, text, btn) { app.innerHTML = '<div class="sf-state" role="status"><h2>' + esc(title) + '</h2>' + (text ? '<p>' + esc(text) + '</p>' : '') + (btn || '') + '</div>'; }
+
+  var k = qs('k');
+  if (!k && !PREVIEW) k = get(SK);
+  if (!k || !/^[a-f0-9]{16,40}$/.test(k)) { state('Link needed', 'Please open the link Dongjae sent you.'); return; }
+  put(SK, k);
+  if (PREVIEW) { var pb = document.createElement('div'); pb.className = 'preview-bar'; pb.textContent = '선생님 미리 보기 — 이 기기에 기록이 남지 않아요.'; document.body.insertBefore(pb, document.body.firstChild); }
+
+  var cacheU = {};
+  function call(unit, tries) {
+    if (cacheU[unit || '']) return Promise.resolve(cacheU[unit || '']);
+    var body = { action: 'self.unit', key: k }; if (unit) body.unit_id = unit;
+    return fetch(window.HW_CONFIG.API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        if (!j.ok) { var e = new Error(j.error || 'error'); e.server = !/^server:/.test(j.error || ''); throw e; }
+        cacheU[unit || ''] = cacheU[j.data.unit_id] = j.data; return j.data;
+      })
+      .catch(function (e) {
+        if (!e.server && (tries || 0) < 2) return new Promise(function (ok) { setTimeout(ok, 1500 * ((tries || 0) + 1)); }).then(function () { return call(unit, (tries || 0) + 1); });
+        throw e;
+      });
+  }
+  function fail(e, again) {
+    if (e && e.server && /unknown key/.test(e.message)) { put(SK, null); state('Link not found', 'Please open the newest link Dongjae sent you.'); return; }
+    state('Can’t connect', 'Check your internet and try again.', '<button class="sf-btn" type="button" id="retry">Try again</button>');
+    document.getElementById('retry').onclick = again;
+  }
+
+  var P = get('hw_self_prog') || {};   // { 단원: {n 문항 수, done 끝낸 수, ok 맞은 수} }
+  var me = null, cur = null, lvShow = null;
+  var STG = { '입문': 'Starter', '초급': 'Beginner', '중급': 'Intermediate', '중상급': 'Upper-intermediate', '고급': 'Advanced', '비즈니스': 'Business' };   // 단원 단계(교재 L 숫자는 선생님 레벨과 달라서 안 보임)
+  function flashUrl(u) { var x = BY[u]; return FLASH + (x && x.k.length ? '?sets=' + encodeURIComponent(x.k.join(',')) : ''); }
+  function unitNo(u) { return String(Number(u.slice(5))); }
+
+  function home() {
+    var u = BY[cur] || UNITS[0];
+    var pr = P[cur], doneTxt = pr && pr.done ? ' · done ' + pr.done + '/' + pr.n : '';
+    var prev = UNITS[u.i - 1], next = UNITS[u.i + 1];
+    var html = '<h1>Your Korean practice</h1><p class="sf-lead">Free for my past students. Pick a unit, practise at your own pace, and come back any time.</p>' +
+      '<div class="sf-tiles">' +
+      '<a class="sf-tile sf-main" data-act="self-yt" href="' + YT + '" target="_blank" rel="noopener"><span class="sf-ic">' + svg('play') + '</span><span class="sf-tt"><b>YouTube lessons</b><span>Short Korean lessons · @flykorean</span></span>' + svg('go', 'sf-go') + '</a>' +
+      '<a class="sf-tile" data-act="self-cards" href="' + esc(flashUrl(cur)) + '" target="_blank" rel="noopener"><span class="sf-ic">' + svg('cards') + '</span><span class="sf-tt"><b>Word cards</b><span>Unit ' + unitNo(cur) + ' words</span></span>' + svg('go', 'sf-go') + '</a>' +
+      '<button class="sf-tile" type="button" data-act="self-practice" id="go"><span class="sf-ic">' + svg('pen') + '</span><span class="sf-tt"><b>Practice</b><span>Unit ' + unitNo(cur) + ' · ' + u.n + ' questions' + esc(doneTxt) + '</span></span>' + svg('go', 'sf-go') + '</button>' +
+      '</div>' +
+      '<h2>Unit</h2><div class="sf-unit" data-act="self-unit"><small>Unit ' + unitNo(cur) + (STG[u.st] ? ' · ' + STG[u.st] : '') + (cur === me.start_unit ? ' · suggested start' : '') + '</small><b lang="ko">' + esc(u.t) + '</b>' +
+      '<div class="sf-row"><button class="sf-btn sf-grow" type="button" id="prev"' + (prev ? '' : ' disabled') + '>Previous</button><button class="sf-btn sf-grow" type="button" id="next"' + (next ? '' : ' disabled') + '>Next</button></div>' +
+      '<div class="sf-row"><button class="sf-btn sf-grow" type="button" id="all">Choose another unit</button></div></div>' +
+      '<div id="list"></div>' +
+      '<p class="sf-foot">Want to have lessons again? Send me a message on Preply.</p>';
+    app.innerHTML = html;
+    document.getElementById('go').onclick = practice;
+    if (prev) document.getElementById('prev').onclick = function () { pick(prev.u); };
+    if (next) document.getElementById('next').onclick = function () { pick(next.u); };
+    document.getElementById('all').onclick = function () { lvShow = lvShow || u.st || '입문'; list(); };
+    if (lvShow) list();
+  }
+  function pick(u) { cur = u; put('hw_self_unit', u); lvShow = null; home(); window.scrollTo(0, 0); }
+  function list() {
+    var lvs = Object.keys(STG).filter(function (g) { return UNITS.some(function (u) { return u.st === g; }); });
+    var html = '<h2>All units</h2><div class="sf-chips" role="group" aria-label="Stage">' + lvs.map(function (l) { return '<button class="sf-chip" type="button" data-lv="' + l + '" aria-pressed="' + (l === lvShow) + '">' + STG[l] + '</button>'; }).join('') + '</div><div class="sf-ulist">';
+    UNITS.filter(function (u) { return u.st === lvShow; }).forEach(function (u) {
+      var pr = P[u.u];
+      html += '<button type="button" data-u="' + u.u + '"' + (u.u === cur ? ' class="sf-cur" aria-current="true"' : '') + '><span class="sf-no">' + unitNo(u.u) + '</span><span class="sf-nm" lang="ko">' + esc(u.t) + '</span>' + (pr && pr.done >= pr.n ? '<span class="sf-dn">Done</span>' : '') + '</button>';
+    });
+    var box = document.getElementById('list'); box.innerHTML = html + '</div>';
+    Array.prototype.forEach.call(box.querySelectorAll('[data-lv]'), function (b) { b.onclick = function () { lvShow = b.getAttribute('data-lv'); list(); }; });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-u]'), function (b) { b.onclick = function () { pick(b.getAttribute('data-u')); }; });
+  }
+
+  // 연습: 고르기는 바로 맞음/틀림, 번역·대답은 써 보거나 말해 본 뒤 답 보기 → 스스로 표시
+  var HOW = { pick: 'Choose the right one.', ko_en: 'Say or write it in English.', en_ko: 'Say or write it in Korean.', qa: 'Answer in Korean.' };
+  function practice() {
+    app.innerHTML = '<div class="sf-skel"></div><div class="sf-skel"></div>';
+    call(cur).then(function (d) {
+      if (!d.items.length) { state('No questions here', 'Try the next unit.', '<button class="sf-btn" type="button" id="back">Back</button>'); document.getElementById('back').onclick = home; return; }
+      var its = d.items.slice(), at = 0, ok = 0;
+      var pr = P[cur] || { n: its.length, done: 0, ok: 0 }; pr.n = its.length;
+      if (pr.done >= its.length) pr.done = 0;
+      at = pr.done; ok = pr.done ? pr.ok : 0;
+      function save() { pr.done = at; pr.ok = ok; P[cur] = pr; put('hw_self_prog', P); }
+      function step() {
+        if (at >= its.length) { save(); finish(); return; }
+        var x = its[at], ko = x.t === 'pick' || x.t === 'ko_en' || x.t === 'qa';
+        var h = '<div class="sf-bar"><button class="sf-btn" type="button" id="close">Close</button><span class="sf-pos">' + (at + 1) + ' / ' + its.length + '</span></div>' +
+          '<div class="sf-prog"><i style="width:' + Math.round(at / its.length * 100) + '%"></i></div><div class="sf-card">' +
+          '<p class="sf-how">' + HOW[x.t] + '</p>' + (x.q ? '<p class="sf-q' + (ko ? '' : ' sf-en') + '" lang="' + (ko ? 'ko' : 'en') + '">' + esc(x.q) + '</p>' : '') +
+          (x.t === 'pick' && x.en ? '<p class="sf-hint">' + esc(x.en) + '</p>' : '');
+        if (x.t === 'pick') h += '<div class="sf-opts">' + x.o.map(function (o, i) { return '<button class="sf-opt" type="button" lang="ko" data-i="' + i + '">' + esc(o) + '</button>'; }).join('') + '</div><div id="after"></div>';
+        else h += '<textarea class="sf-mine" lang="' + (x.t === 'ko_en' ? 'en' : 'ko') + '" placeholder="Your answer (optional)" aria-label="Your answer"></textarea><div id="after"><div class="sf-row"><button class="sf-btn sf-pri sf-grow" type="button" id="show">Show answer</button></div></div>';
+        app.innerHTML = h + '</div>';
+        document.getElementById('close').onclick = function () { save(); home(); };
+        var after = document.getElementById('after');
+        function nextBtn(label) { return '<div class="sf-row"><button class="sf-btn sf-pri sf-grow" type="button" id="nx">' + label + '</button></div>'; }
+        if (x.t === 'pick') {
+          Array.prototype.forEach.call(app.querySelectorAll('.sf-opt'), function (b) {
+            b.onclick = function () {
+              if (after.innerHTML) return;
+              var i = +b.getAttribute('data-i'), right = i === x.a;
+              if (right) ok++;
+              b.classList.add(right ? 'sf-ok' : 'sf-bad');
+              var rb = app.querySelector('.sf-opt[data-i="' + x.a + '"]'); if (rb) rb.classList.add('sf-ok');
+              after.innerHTML = '<div class="sf-ans"><small>' + (right ? 'Right' : 'Answer') + '</small><span lang="ko">' + esc(x.full || x.o[x.a]) + '</span></div>' + nextBtn('Next');
+              document.getElementById('nx').onclick = function () { at++; save(); step(); };
+            };
+          });
+        } else {
+          document.getElementById('show').onclick = function () {
+            after.innerHTML = '<div class="sf-ans"><small>' + (x.ans.length > 1 ? 'Possible answers' : x.t === 'qa' ? 'Example answer' : 'Answer') + '</small><span lang="' + (x.t === 'ko_en' ? 'en' : 'ko') + '">' + x.ans.map(esc).join('<br>') + '</span></div>' +
+              '<div class="sf-row"><button class="sf-btn sf-grow" type="button" id="no">Not yet</button><button class="sf-btn sf-pri sf-grow" type="button" id="yes">I got it</button></div>';
+            document.getElementById('yes').onclick = function () { ok++; at++; save(); step(); };
+            document.getElementById('no').onclick = function () { at++; save(); step(); };
+          };
+        }
+        window.scrollTo(0, 0);
+      }
+      function finish() {
+        var nx = UNITS[(BY[cur] || {}).i + 1];
+        state('Unit ' + unitNo(cur) + ' done', ok + ' of ' + its.length + ' right. Nice work.',
+          '<div class="sf-row" style="width:100%;max-width:360px">' + '<button class="sf-btn sf-grow" type="button" id="again">Practise again</button>' + (nx ? '<button class="sf-btn sf-pri sf-grow" type="button" id="nu">Next unit</button>' : '') + '</div>' +
+          '<div class="sf-row" style="width:100%;max-width:360px"><button class="sf-btn sf-grow" type="button" id="hm">Home</button></div>');
+        document.getElementById('again').onclick = function () { pr.done = 0; pr.ok = 0; P[cur] = pr; put('hw_self_prog', P); practice(); };
+        document.getElementById('hm').onclick = home;
+        if (nx) document.getElementById('nu').onclick = function () { cur = nx.u; put('hw_self_unit', cur); practice(); };
+      }
+      step();
+    }, function (e) { fail(e, practice); });
+  }
+
+  function load() {
+    app.innerHTML = '<div class="sf-skel" style="height:34px;width:60%"></div><div class="sf-skel"></div><div class="sf-skel"></div><div class="sf-skel"></div>';
+    call('').then(function (d) {
+      me = d;
+      var saved = get('hw_self_unit');
+      cur = (saved && BY[saved]) ? saved : BY[d.start_unit] ? d.start_unit : (UNITS[0] || {}).u;
+      cacheU[d.unit_id] = d;
+      if (!cur) { state('No units yet', 'Please try again later.'); return; }
+      home();
+    }, function (e) { fail(e, load); });
+  }
+  load();
+})();
+</script>
+</body>
+</html>
