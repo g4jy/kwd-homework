@@ -1,0 +1,22 @@
+# 앱 푸시 보내기. 공개 저장소면 Actions 무료(분 제한 없음). 비밀은 Settings → Secrets and variables → Actions 에만.
+name: notify
+on:
+  schedule:
+    - cron: "*/10 * * * *"      # GitHub 예약은 몇 분 늦을 수 있음 → '지금 보내기'는 Apps Script 가 workflow_dispatch 로 바로 깨움
+  workflow_dispatch: {}
+concurrency: { group: notify, cancel-in-progress: false }
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pywebpush==2.0.3
+      - run: python notify/notify.py
+        env:
+          HW_API_URL: ${{ secrets.HW_API_URL }}
+          HW_TEACHER_KEY: ${{ secrets.HW_TEACHER_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
