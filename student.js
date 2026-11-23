@@ -112,8 +112,21 @@
     if (c && !this.data) { drew = true; this.fromCache = true; this.gotData(c.d, true); window.KWD_PERF = { cache: true, first_ms: Date.now() - t0 }; }
     else if (!silent && !this.data) this.root.innerHTML = '<div class="loading" role="status"><span class="spin" aria-hidden="true"></span><span>Loading… 불러오는 중</span></div>';
     if (!drew) grp.stop = U.slowWatch(this.root, function () { self._retry = true; self.load(); });
+    // 11/23b 저장본이 없으면 snapshot 파일(CDN, 1초 안)을 서버 호출과 나란히: 먼저 오면 저장본처럼 그리고, 서버 값이 오면 그 값으로 맞춤(아래 full 의 drew 길)
+    var useSnap = !drew && !this.data && !tk && !this.dayOverride && U.snap && U.snap.on();
+    if (useSnap) U.snap.today(this.key).then(function (sc) {
+      if (!sc || drew || grp.done || self.data || (self._gen || 0) !== gen || self.dayOverride) return;
+      c = sc; drew = true; self.fromCache = true; self.fromSnap = true; grp.stop();
+      self.gotData(sc.d, true);
+      window.KWD_PERF = { cache: 'snap', first_ms: Date.now() - t0 };
+    });
+    if (!tk && U.snap) U.snap.refresh(this.key);   // 11/23b 뒤에서 새 파일(다음 세트 사본) — 기기마다 20분에 한 번
+    // 11/23b 지난번에 '다음 과제 받기'를 누른 뒤 넘기기가 끝나기 전에 닫았음 → 서버 지금 세트를 먼저 보고 아직 그 세트면 한 번만 넘김
+    var mk = !tk && !this.dayOverride && !U.PREVIEW && U.adv ? U.adv.get(this.key) : null;
     var full = function () {
-      var req = tk ? U.call('teacher.preview', { tkey: tk, key: self.key, dayset_id: U.hs('d') || '' }) : U.call('student.today', { key: self.key, n: n }, drew);   // T146zb 저장본으로 그렸으면 뒤에서 (줄 안 보임)
+      var req = tk ? U.call('teacher.preview', { tkey: tk, key: self.key, dayset_id: U.hs('d') || '' })
+        : mk ? U.adv.run(self.key, Object.assign({}, mk, { resume: 1 })) : U.call('student.today', { key: self.key, n: n }, drew);   // T146zb 저장본으로 그렸으면 뒤에서 (줄 안 보임)
+      if (mk) { self._advancing = req; var adv0 = function () { if (self._advancing === req) self._advancing = null; self.box.flush(); }; req.then(adv0, adv0); }
       if (!tk) { self._pendToday = req; var clr = function () { if (self._pendToday === req) self._pendToday = null; }; req.then(clr, clr); }   // 11/23 '다음 과제 받기'가 이 호출을 같이 기다림(같은 무거운 호출을 또 부르지 않음)
       return req.then(function (d) {
         if (grp.done) return;
@@ -126,7 +139,7 @@
         return g && g.then ? g.then(fin) : fin();   // T117 지난 세트(student.history) 실패도 아래 오류 화면으로 (전엔 빈 칸이 끝없이 남음)
       });
     };
-    var p = drew && !n && !tk ? U.call('student.ver', { key: this.key }, true).then(function (r) {
+    var p = drew && !n && !tk && !mk ? U.call('student.ver', { key: this.key }, true).then(function (r) {
       if ((self._gen || 0) !== gen) return;
       if (r && r.v && r.v === c.v) { if (window.KWD_PERF) window.KWD_PERF.ver_same = true; return self.afterServer(c.d, true); }
       return full();
@@ -1457,6 +1470,9 @@
   App.prototype.reloaded = function (d, gen, ov) {
     var self = this;
     if ((self._gen || 0) !== gen || self.dayOverride !== ov) return;
+    if (self._advancing && !ov) { self.dirty = true; return; }   // 11/23b 넘기는 중: 서버는 아직 옛 세트일 수 있음 → 넘기기가 끝나면 그 값으로
+    var mkr = !ov && U.adv ? U.adv.get(self.key) : null;
+    if (mkr && d && d.day && d.day.dayset_id === mkr.from) return;   // 11/23b 넘기기가 못 끝남(인터넷 등): 옛 세트로 되돌아가지 않음 — 다음 열기 때 이어서 넘김
     if (d) {
       if (self.midTask()) { self.dirty = true; return; }   // T146zs 쓰는 중: day 를 바꾸면 화면 단추가 옛 문항을 잡아 Done 이 안 먹음 → 목록으로 갈 때 다시
       if (d.student) { self.data = d; self._srvAt = Date.now(); U.dayCache.set(self.key, d); if (!self.dayOverride) self.sendOpen(d); }   // T146a 저장본도 새 값으로 · T146zy 날이 바뀌어 새 세트면 열람

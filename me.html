@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#F6F7FB">
 <link rel="manifest" href="manifest-me.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css?v=20261123143634">
+<link rel="stylesheet" href="app.css?v=20261123165721">
 <style>
 /* T109 학생 허브: 링크 하나 → 오늘 과제 · 수업(화이트보드) · 단어 카드. 토큰은 app.css :root (앱 디자인 언어) */
 .hub { max-width: 480px; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 20px 40px; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
@@ -54,8 +54,8 @@
 </head>
 <body>
 <div id="app" class="hub" aria-live="polite"></div>
-<script src="config.js?v=20261123143634"></script>
-<script src="ui.js?v=20261123143634"></script>
+<script src="config.js?v=20261123165721"></script>
+<script src="ui.js?v=20261123165721"></script>
 <script>
 (function () {
   'use strict';
@@ -211,17 +211,28 @@
   /* T117 과제 값을 받는 중에 Homework 를 누르면 끝날 때까지(최대 12초) 기다렸다 감: 같은 무거운 호출이 서버 잠금에서 겹치면 40초까지 늘어남 */
   app.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('[data-act="hub-homework"]');
-    if (!a || !pf || !a.href) return;
+    if (!a || !pf || !a.href || dayReady()) return;   // 11/23b snapshot 으로 과제 화면 값이 이미 기기에 있으면 기다리지 않음
     e.preventDefault();
     var meta = a.querySelector('.hub-t span'); if (meta) meta.textContent = U.tx('Opening…', '여는 중…');
     var went = false, go = function () { if (went) return; went = true; location.href = a.href; };
     pf.then(go); setTimeout(go, 12000);
   });
   window.addEventListener('pageshow', function (e) { if (e.persisted) load(); });   // 뒤로 왔을 때 '여는 중…' 글이 남지 않게
+  function dayReady() { var dc = U && U.dayCache ? U.dayCache.get(k) : null; return !!dc && (U.dayCache.usable ? U.dayCache.usable(dc) : dc.d.day.local_date === U.todayIn(dc.d.student.tz)); }
   function load() {
     var c = get(HK), drew = false;
     if (c && c.d && Date.now() - (c.at || 0) < 7 * 864e5) { render(c.d); drew = true; }
     else { app.innerHTML = '<div class="hub-skel h"></div><div class="hub-tiles"><div class="hub-skel"></div><div class="hub-skel"></div><div class="hub-skel"></div></div>'; slowStop(); slowStop = U.slowWatch(app, load, '.hub-skel'); }
+    /* 11/23b 저장본이 없으면 snapshot 파일(CDN, 1초 안)을 서버와 나란히: 먼저 오면 그것으로 그리고, 서버 값이 오면 바뀐 것만 다시 그림.
+       과제 화면 값(today)도 기기 저장본이 없으면 이 파일 것으로 채움 → Homework 를 누르면 바로 */
+    if (U && U.snap && U.snap.on()) {
+      if (!drew) U.snap.hub(k).then(function (h) {
+        if (!h || drew || hubOk) return;
+        drew = true; c = { d: h }; slowStop(); render(h);
+      });
+      if (!dayReady()) U.snap.today(k).then(function (sc) { if (sc && !dayReady()) { U.dayCache.set(k, sc.d); var x = U.dayCache.get(k); if (x) { x.at = sc.at; put(U.dayCache.name(k), x); } } });
+      U.snap.refresh(k);
+    }
     pend++;
     call('student.hub').then(function (d) {
       pend--; slowStop(); hubOk = true;

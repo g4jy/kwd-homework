@@ -282,7 +282,7 @@
   };
   /** T146zp 저장 공간 비우기: 서버에서 다시 받을 수 있는 화면 저장본만 지움 (답 줄 hw2_outbox_* 은 건드리지 않음) */
   U.freeStore = function () {
-    try { for (var i = localStorage.length - 1; i >= 0; i--) { var k = localStorage.key(i); if (k && /^hw_day_/.test(k)) localStorage.removeItem(k); } } catch (e) { /* 무시 */ }
+    try { for (var i = localStorage.length - 1; i >= 0; i--) { var k = localStorage.key(i); if (k && /^hw_(day|snapn)_/.test(k)) localStorage.removeItem(k); } } catch (e) { /* 무시 */ }
   };
   /** T146zp 저장 실패를 서버 기록으로 (선생님·부서가 봄). 실패해도 화면엔 영향 없음 */
   U.clientLog = function (key, kind, data) {
@@ -833,6 +833,118 @@
   };
   /** 그 시간대의 오늘 (YYYY-MM-DD) — 저장본이 오늘 것인지 */
   U.todayIn = function (tz) { try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); } catch (e) { return new Date().toISOString().slice(0, 10); } };
+  /* 11/23b snapshot first: 학생마다 작은 암호 파일 하나(클라우드 cloud/hw/snap_fill.py 가 만듦, CDN 에서 1초 안).
+   * 순서 = 기기 저장본 → 이 파일 → 서버(뒤에서 맞춤·쓰기). 파일 = HW_CONFIG.SNAP_URL + id + '.json',
+   * id = SHA-256("kwd-snap-id:" + 키) 앞 32자, 열쇠 = SHA-256("kwd-snap-key:" + 키), AES-256-GCM, 안 = zlib(deflate) JSON
+   * {made_at, ver, today, hub, next:[{date, data}]}. SNAP_URL 이 비었거나·브라우저가 못 하거나·파일이 없거나·깨졌거나·7일 넘으면 없는 것과 같음(오류 안 보임).
+   * 미리 보기(#preview)는 쓰지도 받지도 않음. */
+  U.snap = (function () {
+    var S = {}, mem = {}, MAX_AGE = 7 * 864e5, WAIT = 4000, EVERY = 20 * 60000;
+    function url() { var c = window.HW_CONFIG || {}; return typeof c.SNAP_URL === 'string' ? c.SNAP_URL : ''; }
+    S.on = function () {
+      try { return !!url() && !U.PREVIEW && !!(window.crypto && crypto.subtle && crypto.subtle.decrypt) && typeof window.DecompressionStream === 'function' && typeof TextEncoder === 'function' && typeof window.Response === 'function' && typeof window.Blob === 'function' && !!Blob.prototype.stream; }
+      catch (e) { return false; }
+    };
+    function sha(s) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); }
+    function hex(b) { return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); }
+    function unb64(s) { var r = atob(String(s || '')), a = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) a[i] = r.charCodeAt(i); return a; }
+    S.id = function (k) { return sha('kwd-snap-id:' + k).then(function (h) { return hex(h).slice(0, 32); }); };
+    S.nextName = function (k) { return 'hw_snapn_' + String(k || '').slice(0, 80); };
+    S.stampName = function (k) { return 'hw_snapt_' + String(k || '').slice(0, 80); };
+    function made(o) { var t = o && Date.parse(o.made_at); return isFinite(t) ? t : 0; }
+    /** 파일 받아 풀기 → 안 JSON (못 하면 null, 절대 throw 안 함). 한 화면에서 한 번만 받음 */
+    S.load = function (k) {
+      if (!k || !S.on()) return Promise.resolve(null);
+      if (mem[k]) return mem[k];
+      var ctl = window.AbortController ? new AbortController() : null, tm = null;
+      var work = S.id(k).then(function (id) {
+        var fo = { cache: 'no-cache', credentials: 'omit' }; if (ctl) fo.signal = ctl.signal;
+        return fetch(url() + id + '.json', fo);
+      }).then(function (r) {
+        if (!r || !r.ok || r.status !== 200) return null;
+        return r.json().then(function (f) {
+          if (!f || f.v !== 1 || f.z !== 1 || !f.iv || !f.ct) return null;
+          return sha('kwd-snap-key:' + k).then(function (kb) { return crypto.subtle.importKey('raw', kb, { name: 'AES-GCM' }, false, ['decrypt']); })
+            .then(function (ck) { return crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(f.iv) }, ck, unb64(f.ct)); })
+            .then(function (pt) { return new Response(new Blob([pt]).stream().pipeThrough(new DecompressionStream('deflate'))).text(); })
+            .then(function (s) { var o = JSON.parse(s); return o && typeof o === 'object' && Date.now() - made(o) < MAX_AGE && made(o) - Date.now() < 864e5 ? o : null; });
+        });
+      }).then(function (o) { if (o) S.keepNext(k, o); return o; }, function () { return null; });
+      var out = new Promise(function (ok) {
+        tm = setTimeout(function () { try { if (ctl) ctl.abort(); } catch (e) { /* 무시 */ } ok(null); }, WAIT);
+        work.then(function (o) { clearTimeout(tm); ok(o); }, function () { clearTimeout(tm); ok(null); });
+      });
+      try { localStorage.setItem(S.stampName(k), String(Date.now())); } catch (e) { /* 무시 */ }
+      return (mem[k] = out);
+    };
+    /** 오늘 화면 값 (기기 저장본과 같은 꼴 {v, at, d}). 바로 그려도 되는 것만 (U.dayCache.usable) */
+    S.today = function (k) {
+      return S.load(k).then(function (o) {
+        if (!o || !o.today || !o.today.day || !o.today.student) return null;
+        var c = { v: o.ver || o.today.ver || null, at: made(o), d: o.today, snap: 1 };
+        return U.dayCache.usable(c) ? c : null;
+      });
+    };
+    S.hub = function (k) { return S.load(k).then(function (o) { return o && o.hub && typeof o.hub === 'object' && o.hub.today ? o.hub : null; }); };
+    /** 기기에 '다음 세트' 사본 목록만 남김 (다음 과제 받기를 바로 그리려고). 칸이 모자라면 안 남김 */
+    S.keepNext = function (k, o) {
+      if (U.PREVIEW) return;
+      var nx = (o.next || []).filter(function (x) { return x && /^\d{4}-\d{2}-\d{2}$/.test(String(x.date)) && x.data && x.data.day && x.data.day.dayset_id && x.data.student; }).slice(0, 3);
+      try {
+        if (!nx.length) { localStorage.removeItem(S.nextName(k)); return; }
+        var s = JSON.stringify({ made_at: o.made_at, next: nx });
+        if (s.length > 1500000) return;
+        localStorage.setItem(S.nextName(k), s);
+      } catch (e) { try { localStorage.removeItem(S.nextName(k)); } catch (e2) { /* 무시 */ } }
+    };
+    /** date 날 세트의 사본 (지금 화면의 next_set 과 같은 날, 7일 안에 만든 것, 서버가 넘겨 줄 수 있는 날 = 그 학생 오늘 + 14일 안) */
+    S.next = function (k, date, tz) {
+      if (U.PREVIEW || !date) return null;
+      var m = U.store.get(S.nextName(k), null);
+      if (!m || !m.next || Date.now() - made(m) > MAX_AGE) return null;
+      var lim = new Date(Date.parse(U.todayIn(tz) + 'T00:00:00Z') + 14 * 864e5).toISOString().slice(0, 10);
+      if (date > lim) return null;
+      return m.next.filter(function (x) { return x.date === date && x.data.schedule_mode === 'on_demand'; })[0] || null;
+    };
+    /** 뒤에서 새로 받기: 기기마다 20분에 한 번까지 */
+    S.refresh = function (k) {
+      if (!k || !S.on() || mem[k]) return;
+      var at = 0; try { at = Number(localStorage.getItem(S.stampName(k))) || 0; } catch (e) { return; }
+      if (Date.now() - at < EVERY) return;
+      setTimeout(function () { S.load(k); }, 1500);
+    };
+    return S;
+  })();
+  /* 11/23b '다음 과제 받기'를 바로 그린 뒤 서버 넘기기는 뒤에서. 넘기기 전에 이 기기에 표시(어느 세트에서 어느 날로) →
+   * 도중에 앱을 닫아도 다음 열기 때 서버의 지금 세트를 먼저 보고, 서버가 아직 그 세트에 있을 때만 한 번 넘김(두 번 넘기거나 건너뛰지 않음).
+   * 넘기는 동안 새 세트에 낸 답은 기기 줄에 둠(넘기기와 새 세트 받기가 끝난 뒤 보냄): 서버는 새 세트를 처음 열 때(student.today) 답이 하나도 없어야
+   * 기한 된 복습 카드를 붙이므로(Code.gs attachReview_), 먼저 보내면 그날 복습 카드가 빠짐. */
+  U.adv = {
+    name: function (k) { return 'hw_adv_' + String(k || '').slice(0, 80); },
+    get: function (k) { var m = U.store.get(this.name(k), null); return m && m.from && m.to_id && m.at ? m : null; },
+    set: function (k, m) { return U.store.set(this.name(k), m); },
+    clear: function (k) { try { localStorage.removeItem(this.name(k)); } catch (e) { /* 무시 */ } },
+    /** 이 답(기기 줄 항목)을 아직 보내면 안 되나 */
+    holds: function (p) { if (!p || !p.key || !p.dayset_id || U.PREVIEW) return false; var m = this.get(p.key); return !!m && m.to_id === p.dayset_id; },
+    /** 넘기기 한 번: ① 서버 지금 세트 확인(방금 서버로 확인한 화면이면 건너뜀) ② 아직 from 이면 student.next_set ③ student.today → 그 값.
+     *  next_set 답이 사라져도 다시 넘기지 않음(서버 값 그대로). 이미 보낸 넘기기가 서버에서 아직 도는 중일 수 있으면(6분 안) 기다렸다 다시 봄 */
+    run: function (key, mk) {
+      var self = this;
+      if (U.PREVIEW) return Promise.reject(new Error('preview'));
+      var today = function () { return U.call('student.today', { key: key }, true); };
+      var first = mk.sure && !mk.resume ? Promise.resolve(null)
+        : mk.from_v && !mk.sent ? U.call('student.ver', { key: key }, true).then(function (r) { return r && r.v && r.v === mk.from_v ? null : today(); }, today)
+          : today();
+      var decide = function (d) {
+        if (d && d.day && d.student && (d.day.dayset_id !== mk.from || !(d.schedule_mode === 'on_demand' && d.next_set))) return d;   // 이미 넘어감(다른 기기·자동 넘김·앞 요청) · 넘길 세트 없음 → 서버 값 그대로
+        var cur = self.get(key) || mk;   // 다른 탭·앞 화면이 그사이 보냈을 수 있음 → 기기 표시를 다시 읽음
+        if (cur.sent && Date.now() - cur.sent < 6 * 60000) return new Promise(function (ok) { setTimeout(ok, 20000); }).then(today).then(decide);   // 앞서 보낸 넘기기가 아직 서버에서 도는 중일 수 있음 (Apps Script 한 번 = 6분까지)
+        mk.sent = Date.now(); self.set(key, mk);
+        return U.call('student.next_set', { key: key }, true).then(today, today);   // 넘기기는 이 한 번뿐: 답이 사라져도(오류) 다시 넘기지 않고 서버 값으로
+      };
+      return first.then(decide).then(function (d) { self.clear(key); return d; });
+    }
+  };
   U.hasTouch = function () { try { return (navigator.maxTouchPoints || 0) > 0 || window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
   U.Outbox = function (name) {
     this.key = 'hw2_outbox_' + name; this.mem = U.store.get(this.key, []); this.busy = false; this.wait = 2000; this.listeners = [];
@@ -898,7 +1010,7 @@
     var out = [];
     for (var i = 0; i < this.mem.length && out.length < 20; i++) {
       var it = this.mem[i], p = it.payload || {};
-      if (it.action !== 'student.step' || p.media || p.media2 || (out.length && p.key !== out[0].payload.key)) break;
+      if (it.action !== 'student.step' || p.media || p.media2 || (out.length && p.key !== out[0].payload.key) || (U.adv && U.adv.holds(p))) break;
       out.push(it);
     }
     return out.length > 1 ? out : null;
@@ -906,6 +1018,7 @@
   U.Outbox.prototype.flush = function () {
     var self = this;
     if (this.busy || !this.mem.length) return;
+    if (U.adv && U.adv.holds(this.mem[0].payload)) return;   // 11/23b 넘기는 중인 새 세트의 답: 넘기기·새 세트 받기가 끝나면 보냄 (그 화면이 flush 를 부름 · 15초 타이머)
     this.busy = true;
     var many = this.batch();
     if (many) {

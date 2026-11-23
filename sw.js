@@ -1,14 +1,24 @@
 /* sw.js — 앱 푸시 받기 (PWA). 받으면 Apps Script 에 'delivered', 누르면 학생 화면 열기(→ 'opened' 는 학생 화면이 기록) */
 var CFG = { key: null, api: null };
 // 10/20 홈 화면 앱: 오프라인 껍데기 — 같은 사이트 화면 파일만, 인터넷 먼저(늘 최신) · 안 되면 저장본. 서버(Apps Script) 요청은 손대지 않음
-var SHELL = 'kwd-shell-v87', SHELL_FILES = ['student.html', 'me.html', 'unit-meta.js', 'prefs/ui.json', 'app.css', 'student-v2.css', 'config.js', 'hangul.js', 'pron.js', 'ui.js', 'student.js', 'student-v2.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+var SHELL = 'kwd-shell-v88', SHELL_FILES = ['student.html', 'me.html', 'unit-meta.js', 'prefs/ui.json', 'app.css', 'student-v2.css', 'config.js', 'hangul.js', 'pron.js', 'ui.js', 'student.js', 'student-v2.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', function (e) { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(function (c) { return c.addAll(SHELL_FILES); }).catch(function () {})); });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('kwd-shell-') === 0 && k !== SHELL; }).map(function (k) { return caches.delete(k); })); })
     .then(function () { return self.clients.claim(); }));
 });
+/* 11/23b 학생 snapshot 파일(이름 = 32자 16진수 .json, CDN 이든 같은 사이트든): 껍데기로 저장하지 않음 · 망만 · 4초.
+ * 없음(404)·늦음·망 오류 → 빈 답(204) = 화면은 '파일 없음'으로 보고 서버를 기다림 (화면 콘솔에 404 줄도 안 남음) */
+var SNAP_RE = /\/[0-9a-f]{32}\.json$/;
+function snapFetch(req) {
+  return new Promise(function (ok) {
+    var none = function () { ok(new Response(null, { status: 204 })); }, tm = setTimeout(none, 4000);
+    fetch(req, { cache: 'no-cache' }).then(function (r) { clearTimeout(tm); if (r && r.status === 200) ok(r); else none(); }, function () { clearTimeout(tm); none(); });
+  });
+}
 self.addEventListener('fetch', function (e) {
   var u = new URL(e.request.url);
+  if (e.request.method === 'GET' && SNAP_RE.test(u.pathname)) { e.respondWith(snapFetch(e.request)); return; }   // 11/23b snapshot 파일: 저장 안 함
   if (e.request.method !== 'GET' || u.origin !== self.location.origin) return;   // 서버(Apps Script)·다른 곳은 그대로
   var name = u.pathname.split('/').pop();
   if (SHELL_FILES.indexOf(name) < 0) return;   // 화면 파일만 (주소 뒤 ?k= 같은 것은 저장 이름에 안 넣음 — 학생 키가 캐시에 남지 않게)

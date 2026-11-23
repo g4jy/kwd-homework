@@ -4,6 +4,8 @@
 window.HW_CONFIG = {
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzfasitMV64GEhj65A-YSm7sgs6STki7-Gwi2cqMn7Jml8aEHpFPlSLaUVGItjMSG8n/exec',
   VAPID_PUBLIC_KEY: 'BI_Xq9a7Y8VPf-5xkwpl24SUR4h6KWYLLLvTy0sS4Tpx50oDmyXBkK6tuaXTbTBpAhKikER3jzj5wmVtAaxQDFM',
+  // 11/23b 학생 snapshot 파일 주소(끝에 / 까지, 예 'https://…/snap/'). 비우면 이 층이 꺼짐 = speed-1123 그대로 (RELEASE_1123b.md)
+  SNAP_URL: 'snap/',
   get API_URL() { return this.APPS_SCRIPT_URL; },
   // T140f 단어 카드 앱(kwd-app)은 이 파일에서 script.google.com 주소만 찾는다 → Apps Script 거울(@37)이 Supabase 로 넘김. 앱이 위 주소를 읽게 되면 지움
   APP_WORDS: { APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzfasitMV64GEhj65A-YSm7sgs6STki7-Gwi2cqMn7Jml8aEHpFPlSLaUVGItjMSG8n/exec' }

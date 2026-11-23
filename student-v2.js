@@ -368,6 +368,13 @@
     var self = this, from = this.day && this.day.dayset_id, old = this.data;
     if (this._nextBusy) return this._nextBusy;
     if (U.PREVIEW) { U.toast(U.tx('Preview — nothing is saved', '미리 보기 — 저장하지 않아요')); this.render(); return Promise.resolve(); }
+    if (this._advancing) {   // 11/23b 앞 넘기기가 아직 뒤에서 도는 중(새 세트를 벌써 다 함) → 그게 끝난 뒤 이어서
+      this.waitNext();
+      var chain = this._nextBusy = this._advancing.then(null, function () {}).then(function () { if (self._nextBusy === chain) self._nextBusy = null; return self.nextSet(); });
+      return chain;
+    }
+    var d0 = this.data, nx = d0 && from && !this.dayOverride && d0.schedule_mode === 'on_demand' && d0.next_set && U.snap && U.adv ? U.snap.next(this.key, d0.next_set, d0.student && d0.student.tz) : null;
+    if (nx && nx.data.day.dayset_id !== from) { var fast = this.nextFast(nx); if (fast) return fast; }
     this._gen = (this._gen || 0) + 1;
     var sure = this.fromServer && Date.now() - (this._srvAt || 0) < 30 * 60000, asked = false;
     var today = function () { return U.call('student.today', { key: self.key }, true); };
@@ -403,6 +410,36 @@
       return self.load();
     });
     return this._nextBusy;
+  };
+
+  /* 11/23b '다음 과제 받기' 바로: 기기에 그 날 세트 사본(snapshot next)이 있으면 바로 그 세트를 그림(1초 안).
+   * 서버 넘기기(student.next_set → student.today, 30~40초)는 뒤에서 U.adv.run 으로 한 번만. 넘기기 전에 기기에 표시를 남김(닫았다 열어도 한 번만).
+   * 그사이 낸 답은 기기 줄에서 기다렸다가 넘기기가 끝난 뒤 보냄(U.adv.holds). 서버 값이 오면 맞춤: 문항을 하는 중이면 목록으로 돌아갈 때(dirty). */
+  App.prototype.nextFast = function (nx) {
+    var self = this, from = this.day.dayset_id, c0 = U.dayCache.get(this.key);
+    this._gen = (this._gen || 0) + 1;
+    var gen = this._gen, sure = !!(this.fromServer && Date.now() - (this._srvAt || 0) < 30 * 60000);
+    var mk = { from: from, from_date: this.day.local_date, to: nx.date, to_id: nx.data.day.dayset_id, from_v: c0 && c0.d && c0.d.day && c0.d.day.dayset_id === from ? c0.v || null : null, sure: sure, at: Date.now() };
+    if (!U.adv.set(this.key, mk)) return null;   // 표시를 못 남기면(저장 공간) 옛 길(가져오는 중 화면)
+    var d = JSON.parse(JSON.stringify(nx.data)); d.ver = null;   // 버전 없음 = 다음 열기 때 늘 서버 값으로 맞춤
+    U.dayCache.set(this.key, d);
+    this.data = d; this.day = d.day; this.fromServer = false; this.fromSnap = true;
+    this.open = null; this.cur = null; this._openG = null; this.view = 'list';
+    this.overlayOutbox(); this.render(); window.scrollTo(0, 0);
+    window.KWD_PERF = Object.assign(window.KWD_PERF || {}, { next_fast: true });
+    var run = this._advancing = U.adv.run(this.key, mk);
+    var end = function () { if (self._advancing === run) self._advancing = null; };
+    run.then(function (srv) {
+      end();
+      if ((self._gen || 0) !== gen || self.dayOverride) { self.box.flush(); return; }
+      if (srv && srv.day && srv.student) {
+        U.dayCache.set(self.key, srv);
+        if (self.midTask()) { self.dirty = true; self.fromServer = false; if (self.data && srv.day.dayset_id === self.day.dayset_id) self.data.next_set = srv.next_set; }   // 쓰는 중: 목록으로 갈 때 다시 받아 맞춤 (그때까지 '다음 과제'는 서버 확인부터)
+        else { self.reloaded(srv, gen, null); self.afterServer(srv); }
+      }
+      self.box.flush();
+    }, function () { end(); });   // 인터넷 없음 등: 표시는 남김 → 다음 열기 때 이어서(서버가 아직 옛 세트면 그때 한 번 넘김). 답은 기기에
+    return Promise.resolve();
   };
 
   // 묶음 펼치기: 다시 그리지 않고 class 만 바꿔서 CSS 가 높이를 0fr → 1fr 로 움직이게
