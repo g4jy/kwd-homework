@@ -136,6 +136,11 @@ html.sx.v2[data-theme="dark"] { --line-ui: #6F7A85; }
 .sx.v2 .state2 .big { width: 64px; height: 64px; border-radius: 50%; background: var(--box); color: var(--ink-2); display: grid; place-items: center; }
 .sx.v2 .state2 .big .ico.v { width: 32px; height: 32px; }
 .sx.v2 .state2 p { margin: 0; font-size: 22px; font-weight: 600; max-width: 22ch; }
+/* 11/23 다음 과제 받는 중: 한 줄 안내 + 가는 막대(40초에 걸쳐 참, 움직임 줄이기 설정이면 멈춤) */
+.sx.v2 .state2 p.hint1 { font-size: 15px; font-weight: 400; max-width: 30ch; }
+.sx.v2 .nx-bar { width: min(240px, 70%); height: 6px; border-radius: 3px; background: var(--box); overflow: hidden; }
+.sx.v2 .nx-bar i { display: block; width: 100%; height: 100%; background: var(--accent); transform-origin: left center; transform: scaleX(.04); animation: v2nx 40s cubic-bezier(.1, .6, .3, 1) forwards; }
+@keyframes v2nx { to { transform: scaleX(.95); } }
 
 /* 메뉴(바텀시트) */
 .sx.v2 .sheet.bottom > .wrap { gap: 10px; max-height: 86vh; overflow-y: auto; }

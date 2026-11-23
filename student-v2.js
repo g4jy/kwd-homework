@@ -157,6 +157,7 @@
   App.prototype.render = function () {
     U.camHint = L.camHint;   // T108e 카메라 안내도 설정 언어 하나
     if (!this.data.student.consent_at) { this.root.innerHTML = ''; return this.renderIntro(); }
+    if (this.view === 'nextwait' && this._nextBusy) return this.root.querySelector('[data-act="next-loading"]') ? null : this.waitNext();   // 11/23 다음 과제 받는 중에는 다른 다시 그리기가 화면을 덮지 않음
     if (this.view === 'task' && this.task(this.cur)) return this.renderTask();
     if (this.view === 'progress' && this._prog) return this.drawProgress(this._prog);
     if (this.view === 'settings') return this.renderSettings();
@@ -338,13 +339,7 @@
     if (this.dayOverride) this._blDone[this.dayOverride] = 1;
     if (d.schedule_mode === 'on_demand' && !this.dayOverride) {
       if (!d.next_set) { foot.appendChild(el('p', { class: 'hint1', 'data-act': 'next-wait' }, U.tx('Your next homework is being prepared.', '다음 과제를 준비하고 있어요.'))); return; }
-      var nb = B(U.tx('Get next homework', '다음 과제 받기', 1), 'pri', function () {
-        nb.disabled = true;
-        U.call('student.next_set', { key: self.key }).then(function (r) {
-          if (!r.moved) { nb.disabled = false; U.toast(U.tx('Your next homework is being prepared.', '다음 과제를 준비하고 있어요.')); return; }
-          self.load(true);
-        }, function (e) { nb.disabled = false; U.toast(e.message); });
-      }, { 'data-act': 'next-set' });
+      var nb = B(U.tx('Get next homework', '다음 과제 받기', 1), 'pri', function () { nb.disabled = true; self.nextSet(); }, { 'data-act': 'next-set' });
       foot.appendChild(nb); return;
     }
     // T146q (선생님 L6·A3·A10) 밀린 날이 있으면 'Do an earlier day', 없으면 다음 날 미리 하기. 첫 과제 학생(밀린 날 없음)도 같은 규칙
@@ -352,6 +347,62 @@
     if (nx) { foot.appendChild(B(U.tx('Want more? Do an earlier day', '더 할래요? 밀린 과제 하기', 1), 'pri', function () { self.goDay(nx.dayset_id); }, { 'data-act': 'more-backlog' })); return; }
     var ah = (d.ahead || []).filter(function (x) { return !self._blDone[x.dayset_id] && x.dayset_id !== self.dayOverride; })[0];
     if (ah) foot.appendChild(B(U.tx('Get ahead: try tomorrow’s', '내일 과제 미리 하기', 1), 'pri', function () { self.goDay(ah.dayset_id); }, { 'data-act': 'more-ahead', 'data-date': ah.local_date }));
+  };
+
+  /* 11/23 '다음 과제 받기'. 옛: 단추만 흐려진 채 서버 두 번(넘기기 + 새 세트, 합쳐 30~40초)을 기다림 → 멈춘 것처럼 보였음.
+   * ① 누르면 바로 '가져오는 중' 화면(얼마나 걸리는지 한 줄). ② 화면이 저장본으로 그린 것이라 서버 확인이 아직이면(또는 30분 넘게 확인이 없었으면)
+   *   먼저 지금 세트를 서버에 물음: 이미 다음 세트로 넘어가 있으면(다른 기기·자동 넘김) 그 세트를 그대로 보여 주고 넘기지 않음 = 한 세트를 건너뛰지 않음.
+   * ③ 넘기기 전에 저장본을 지움(넘기는 중에 앱을 닫아도 옛 세트 + 단추로 다시 열리지 않게). ④ 넘긴 뒤 새 세트를 못 받으면 처음부터 다시 불러옴(옛 화면으로 안 돌아감).
+   * 뒤에서 받던 옛 세트 값은 _gen 으로 버림. 서버 동작·기록은 그대로(student.next_set 한 번 → student.today 한 번) */
+  App.prototype.waitNext = function () {
+    var self = this; this.view = 'nextwait';
+    var hint = el('p', { class: 'hint1', 'data-act': 'next-hint' }, U.tx('This usually takes about half a minute. Please keep this screen open.', '보통 30초쯤 걸려요. 화면을 그대로 두세요.'));
+    var scr = el('section', { class: 'state2', role: 'status', 'aria-busy': 'true', 'data-act': 'next-loading' },
+      el('div', { class: 'big' }, ic('clock')), el('p', {}, U.tx('Getting your next homework', '다음 과제를 가져오고 있어요')),
+      el('div', { class: 'nx-bar', 'aria-hidden': 'true' }, el('i')), hint);
+    clearTimeout(this._nxT);
+    this._nxT = setTimeout(function () { if (hint.isConnected) hint.textContent = U.tx('Still working. The server is slow right now. Please keep this screen open.', '아직 가져오는 중이에요. 지금 서버가 느려요. 화면을 그대로 두세요.'); }, 50000);
+    return this.shell(el('header', { class: 'bar-top' }, el('h1', {}, L.today)), scr);
+  };
+  App.prototype.nextSet = function () {
+    var self = this, from = this.day && this.day.dayset_id, old = this.data;
+    if (this._nextBusy) return this._nextBusy;
+    if (U.PREVIEW) { U.toast(U.tx('Preview — nothing is saved', '미리 보기 — 저장하지 않아요')); this.render(); return Promise.resolve(); }
+    this._gen = (this._gen || 0) + 1;
+    var sure = this.fromServer && Date.now() - (this._srvAt || 0) < 30 * 60000, asked = false;
+    var today = function () { return U.call('student.today', { key: self.key }, true); };
+    var verify = function () {   // 받고 있는 값이 있으면 그것을, 없으면 버전만 물어(2초) 저장본과 같으면 확인 끝, 다르면 지금 세트를 받음
+      if (self._pendToday) return self._pendToday;
+      var c = U.dayCache.get(self.key);
+      if (!c || !c.v || c.d.day.dayset_id !== from) return today();
+      return U.call('student.ver', { key: self.key }, true).then(function (r) { return r && r.v && r.v === c.v ? null : today(); }, today);
+    };
+    var chk = sure ? Promise.resolve(null) : verify();
+    var back = function (msg) { self.view = 'list'; self.render(); if (msg) U.toast(msg); };
+    this.waitNext();
+    var p = chk.then(function (d) {
+      if (d && d.day && d.student && (d.day.dayset_id !== from || !(d.schedule_mode === 'on_demand' && d.next_set))) return d;   // 이미 다음 세트 · 또는 다음 세트가 아직 없음 → 서버 값 그대로
+      U.dayCache.drop(self.key); asked = true;
+      return U.call('student.next_set', { key: self.key }, true).then(function (r) {
+        if (!r || !r.moved) { var e = new Error('not moved'); e.notMoved = true; throw e; }
+        return today();
+      });
+    });
+    this._nextBusy = p.then(function (d) {
+      self._nextBusy = null; clearTimeout(self._nxT);
+      self.data = d; self.day = d.day;
+      U.dayCache.set(self.key, d);
+      self.open = null; self.cur = null; self._openG = null; self.view = 'list';
+      self.overlayOutbox(); self.render(); window.scrollTo(0, 0);
+      self.afterServer(d);   // 연 시각 기록 · 서버 확인 표시
+    }, function (e) {
+      self._nextBusy = null; clearTimeout(self._nxT);
+      if (e && e.notMoved) { if (old) U.dayCache.set(self.key, old); return back(U.tx('Your next homework is being prepared.', '다음 과제를 준비하고 있어요.')); }
+      if (!asked) return back(U.tx('Could not check your homework. Check your internet and try again.', '과제를 확인하지 못했어요. 인터넷을 확인하고 다시 해 주세요.'));
+      self.data = null; self.day = null; self.fromServer = false; self.view = 'list';   // 넘겼는지 모르거나, 넘겼는데 새 세트를 못 받음 → 서버 값으로 처음부터
+      return self.load();
+    });
+    return this._nextBusy;
   };
 
   // 묶음 펼치기: 다시 그리지 않고 class 만 바꿔서 CSS 가 높이를 0fr → 1fr 로 움직이게

@@ -96,10 +96,12 @@
   App.prototype.cached = function () {
     if (this.dayOverride || (U.PREVIEW && U.hs('t'))) return null;
     var c = U.dayCache.get(this.key);
-    return c && c.d.day.local_date === U.todayIn(c.d.student.tz) ? c : null;
+    // 11/23 수시 갱신 학생은 날짜가 달라도 지금 세트 저장본을 씀 (ui.js usable). 느린 망에서 옛 ui.js 가 섞여 와도(서비스 워커 저장본) 옛 규칙으로 돎
+    var ok = U.dayCache.usable ? U.dayCache.usable(c) : !!c && c.d.day.local_date === U.todayIn(c.d.student.tz);
+    return ok ? c : null;
   };
   App.prototype.load = function (silent) {
-    var self = this, t0 = Date.now();
+    var self = this, t0 = Date.now(), gen = this._gen || 0;   // 11/23 gen: 이 불러오기가 시작된 뒤 '다음 과제 받기'를 눌렀으면 늦게 온 값(옛 세트)을 버림
     // T117 [다시 시도]는 앞 호출을 버리지 않음: 같은 묶음에서 먼저 온 답만 그림, 오류는 남은 호출이 없을 때만
     var grp = this._retry && this._grp && !this._grp.done ? this._grp : (this._grp = { done: false, n: 0, stop: function () {} });
     this._retry = false; grp.n++;
@@ -112,8 +114,10 @@
     if (!drew) grp.stop = U.slowWatch(this.root, function () { self._retry = true; self.load(); });
     var full = function () {
       var req = tk ? U.call('teacher.preview', { tkey: tk, key: self.key, dayset_id: U.hs('d') || '' }) : U.call('student.today', { key: self.key, n: n }, drew);   // T146zb 저장본으로 그렸으면 뒤에서 (줄 안 보임)
+      if (!tk) { self._pendToday = req; var clr = function () { if (self._pendToday === req) self._pendToday = null; }; req.then(clr, clr); }   // 11/23 '다음 과제 받기'가 이 호출을 같이 기다림(같은 무거운 호출을 또 부르지 않음)
       return req.then(function (d) {
         if (grp.done) return;
+        if ((self._gen || 0) !== gen) { grp.done = true; grp.stop(); return; }   // 11/23 그사이 '다음 과제 받기'가 화면을 맡음 → 이 값은 그쪽이 씀
         var fin = function () { if (grp.done) return; grp.done = true; grp.stop(); return self.afterServer(d); };
         if (!tk && !self.dayOverride) U.dayCache.set(self.key, d);
         var same = drew && JSON.stringify(Object.assign({}, c.d, { ver: null, local_now: null })) === JSON.stringify(Object.assign({}, d, { ver: null, local_now: null }));
@@ -123,6 +127,7 @@
       });
     };
     var p = drew && !n && !tk ? U.call('student.ver', { key: this.key }, true).then(function (r) {
+      if ((self._gen || 0) !== gen) return;
       if (r && r.v && r.v === c.v) { if (window.KWD_PERF) window.KWD_PERF.ver_same = true; return self.afterServer(c.d, true); }
       return full();
     }, function () { return full(); }) : full();
@@ -187,7 +192,7 @@
   /** 서버에서 받은 뒤 한 번: 연 시각 기록 · '바빠요' 링크 */
   App.prototype.afterServer = function (d, verOnly) {
     var self = this;
-    this.fromServer = true;
+    this.fromServer = true; this._srvAt = Date.now();   // 11/23 서버 값으로 확인한 때 ('다음 과제 받기' 전에 옛 화면인지 판단)
     this.sendOpen(d);
     this.watchDay(); this.box.report(this.key);   // T146zy 날 바뀜 감시 · 오래 못 보낸 답 서버에 알림
     // 알림·이메일의 'Too busy today 😭' 링크(&busy=1) — 한 번 누른 것으로 끝 (화면에서 되돌리기 가능)
@@ -1437,18 +1442,30 @@
     if (this.view !== 'task' || !this.cur) return false;
     var t = this.task(this.cur); return !!(t && !finished(t) && t.steps.some(function (s) { return !s.sub; }));
   };
+  /* 11/23 뒤에서 다시 받기는 한 번에 하나: 문항을 연달아 끝내면 15~30초짜리 student.today 가 겹쳐 서버가 더 느려지던 것.
+   * 받는 중에 또 부르면 끝난 뒤 한 번만 더 받음. 그사이 '다음 과제 받기'·지난 세트 보기로 화면이 바뀌었으면(_gen·dayOverride) 온 값은 버림 */
   App.prototype.reloadDay = function () {
     var self = this;
+    if (this._rl) { this._rlAgain = true; return this._rl; }
+    var gen = this._gen || 0, ov = this.dayOverride;
     var p = this.dayOverride ? U.call('student.history', { key: this.key, dayset_id: this.dayOverride }, true) : U.call('student.today', { key: this.key }, true);   // T146zb 화면은 이미 이 기기 값으로 그렸음 → 뒤에서
-    return p.then(function (d) {
+    var end = function () { self._rl = null; if (self._rlAgain) { self._rlAgain = false; if ((self._gen || 0) === gen && self.dayOverride === ov) self.reloadDay().catch(function () {}); } };
+    this._rl = p.then(function (d) { return self.reloaded(d, gen, ov); });
+    this._rl.then(end, end);
+    return this._rl;
+  };
+  App.prototype.reloaded = function (d, gen, ov) {
+    var self = this;
+    if ((self._gen || 0) !== gen || self.dayOverride !== ov) return;
+    if (d) {
       if (self.midTask()) { self.dirty = true; return; }   // T146zs 쓰는 중: day 를 바꾸면 화면 단추가 옛 문항을 잡아 Done 이 안 먹음 → 목록으로 갈 때 다시
-      if (d.student) { self.data = d; U.dayCache.set(self.key, d); if (!self.dayOverride) self.sendOpen(d); }   // T146a 저장본도 새 값으로 · T146zy 날이 바뀌어 새 세트면 열람
+      if (d.student) { self.data = d; self._srvAt = Date.now(); U.dayCache.set(self.key, d); if (!self.dayOverride) self.sendOpen(d); }   // T146a 저장본도 새 값으로 · T146zy 날이 바뀌어 새 세트면 열람
       var keep = {}, prevDay = self.day; (self.day ? self.day.tasks : []).forEach(function (t) { keep[t.task_id] = t; });
       self.day = d.day;
       self.day.tasks.forEach(function (t) { var o = keep[t.task_id]; if (o) { t._lastImg = o._lastImg; t._lastTyped = o._lastTyped; t._q = o._q; t._att = o._att; t._first = o._first; t._skipW = o._skipW; } });
       self.overlayOutbox(); self.keepLocal(prevDay);   // T146zr
       self.rerenderList();
-    });
+    }
   };
 
   /* ---------- 단어 카드: 뜻 → (말하기 또는 타자) → 답 + [발음] + 소리 → 2버튼. 틀리면 이번에 3번까지 다시 ---------- */

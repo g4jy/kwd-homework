@@ -441,7 +441,7 @@
       return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
     }).then(function (sub) { var j = sub.toJSON(); return send({ endpoint: j.endpoint, keys: j.keys }); });
   };
-  U.PREVIEW_WRITES = ['student.open', 'student.notif', 'student.step', 'student.skip', 'student.skip_task', 'student.mark', 'student.consent', 'student.push_sub', 'student.device', 'student.check_save'];
+  U.PREVIEW_WRITES = ['student.open', 'student.notif', 'student.step', 'student.skip', 'student.skip_task', 'student.mark', 'student.consent', 'student.push_sub', 'student.device', 'student.check_save', 'student.next_set'];   // 11/23 next_set: 미리 보기에서 '다음 과제 받기'가 학생의 세트 날을 실제로 넘기던 것
   /** 이 기기에서 한국어를 어떻게 쓰나 (처음 열 때 학생이 고름): pad = 화면에 손글씨 · paper = 종이에 쓰고 사진 · type = 타자 */
   U.WRITE_MODES = { pad: 'On the screen', paper: 'On paper + photo', type: 'Typing' };
   /** T109e 화면 글자 언어: ?lang= 또는 기기에 저장한 hw_lang (기본 영어). 학습 내용(한국어 문장)은 언제나 한국어 */
@@ -820,7 +820,16 @@
       try { var s = JSON.stringify({ v: d.ver || null, at: Date.now(), d: d }); if (s.length > 1500000) return false; localStorage.setItem(this.name(k), s); return true; }
       catch (e) { try { localStorage.removeItem(this.name(k)); } catch (e2) { /* 무시 */ } return false; }
     },
-    drop: function (k) { try { localStorage.removeItem(this.name(k)); } catch (e) { /* 무시 */ } }
+    drop: function (k) { try { localStorage.removeItem(this.name(k)); } catch (e) { /* 무시 */ } },
+    /** 11/23 바로 그려도 되는 저장본인가. 매일 학생 = 그 학생 시간대의 오늘 것. 수시 갱신(on_demand) 학생 = 지금 세트(날짜와 무관, 14일까지):
+     *  수시 학생의 세트 날짜는 달력 오늘이 아니라서 옛 검사로는 저장본을 한 번도 못 썼음(열 때마다 서버 15~30초). 그린 뒤 서버에 버전을 물어 다르면 뒤에서 새로 받음 */
+    usable: function (c) {
+      try {
+        if (!c || !c.d || !c.d.day || !c.d.student) return false;
+        if (c.d.schedule_mode === 'on_demand') return !!c.d.day.dayset_id && Date.now() - (c.at || 0) < 14 * 864e5;
+        return c.d.day.local_date === U.todayIn(c.d.student.tz);
+      } catch (e) { return false; }
+    }
   };
   /** 그 시간대의 오늘 (YYYY-MM-DD) — 저장본이 오늘 것인지 */
   U.todayIn = function (tz) { try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); } catch (e) { return new Date().toISOString().slice(0, 10); } };

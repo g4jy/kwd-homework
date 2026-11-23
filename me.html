@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#F6F7FB">
 <link rel="manifest" href="manifest-me.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css?v=20261114141719">
+<link rel="stylesheet" href="app.css?v=20261123143634">
 <style>
 /* T109 학생 허브: 링크 하나 → 오늘 과제 · 수업(화이트보드) · 단어 카드. 토큰은 app.css :root (앱 디자인 언어) */
 .hub { max-width: 480px; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 20px 40px; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
@@ -54,8 +54,8 @@
 </head>
 <body>
 <div id="app" class="hub" aria-live="polite"></div>
-<script src="config.js?v=20261114141719"></script>
-<script src="ui.js?v=20261114141719"></script>
+<script src="config.js?v=20261123143634"></script>
+<script src="ui.js?v=20261123143634"></script>
 <script>
 (function () {
   'use strict';
@@ -236,7 +236,7 @@
     });
     if (U && U.dayCache) {
       var dc = U.dayCache.get(k);
-      if (!pf && !(dc && dc.d.day.local_date === U.todayIn(dc.d.student.tz))) pf = call('student.today').then(function (d) { if (d && d.day && d.student) U.dayCache.set(k, d); }, function () {}).then(function () { pf = null; });
+      if (!pf && !(U.dayCache.usable ? U.dayCache.usable(dc) : dc && dc.d.day.local_date === U.todayIn(dc.d.student.tz))) pf = call('student.today').then(function (d) { if (d && d.day && d.student) U.dayCache.set(k, d); }, function () {}).then(function () { pf = null; });
       if (!PREVIEW && U.Outbox) { try { new U.Outbox('s_' + k).flush(); } catch (e) { /* 다음에 과제 화면에서 */ } }
     }
   }
