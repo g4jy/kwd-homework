@@ -211,6 +211,73 @@
       return { g: g, ts: ts, n: ts.filter(finished).length };
     }).filter(function (x) { return x.ts.length; });
   };
+  /* 11/26 (선생님) "과거에 한두 개라도 했다면 오늘은 새로운 과제. 하다 만 과제는 먼저 할지, 오늘 것 끝낸 다음에 할지 고르게."
+   * 날짜 넘기기는 클라우드(cloud/hw/od_advance.py, 한 시간마다)가 함. 여기는 묻기만:
+   *  - 하다 만 세트 목록 = 수시 갱신 학생은 학생 사본 파일의 left(cloud/hw/snap_fill.py), 매일 학생은 서버 backlog 중 손댄 날(LEFT_DAILY 켰을 때).
+   *  - 오늘 세트에 아직 손대지 않았을 때 목록 맨 위에 한 번 묻고(이 기기에 기억), '오늘 것부터'면 오늘 것을 끝낸 화면에서 다시 권함.
+   *  - 그 세트를 끝내면 이 기기에 표시(사본 파일이 한 시간 늦어도 다시 안 물음). 서버 쓰기 없음. */
+  var LEFT_DAILY = false;   // 1단계: 수시 갱신 학생만(사본 파일에 left 가 있는 학생). 2단계에서 true
+  function leftDone() { return U.store.get('hw_left_done', {}); }
+  function leftMark(id) { var m = leftDone(); m[id] = Date.now(); var ks = Object.keys(m); if (ks.length > 40) ks.sort(function (a, b) { return m[a] - m[b]; }).slice(0, ks.length - 40).forEach(function (k) { delete m[k]; }); U.store.set('hw_left_done', m); }
+  function leftWhen(x, tz) {   // 그 과제를 한 날(없으면 계획 날) → ['Nov 19', '11월 19일']
+    var dt = x.last ? new Date(x.last) : null, ymd = null;
+    if (dt && !isNaN(dt)) { try { ymd = new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(dt); } catch (e) { ymd = null; } }
+    ymd = ymd || String(x.date || x.local_date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+    var m = +ymd.slice(5, 7), dd = +ymd.slice(8, 10);
+    return [['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1] + ' ' + dd, m + '월 ' + dd + '일'];
+  }
+  App.prototype.leftName = function () { return 'hw_left_ask_' + String(this.key).slice(0, 80); };
+  /** 하다 만 세트 하나(가장 최근) 또는 null */
+  App.prototype.leftOne = function () {
+    var self = this, d = this.data || {}, cur = d.day && d.day.dayset_id, done = leftDone();
+    var list = d.schedule_mode === 'on_demand' ? (this._left || []) : LEFT_DAILY ? (d.backlog || []).filter(function (x) { return x.ratio > 0; }).map(function (x) { return { dayset_id: x.dayset_id, date: x.local_date, ratio: x.ratio }; }) : [];
+    return list.filter(function (x) { return x && x.dayset_id && x.dayset_id !== cur && !done[x.dayset_id] && !(self._blDone || {})[x.dayset_id] && x.ratio < 0.999; })[0] || null;
+  };
+  App.prototype.leftLoad = function () {
+    var self = this;
+    if (this._leftAsked || U.PREVIEW || !U.snap) return;
+    this._leftAsked = true;
+    U.snap.load(this.key).then(function (o) {
+      self._left = o && Array.isArray(o.left) ? o.left.slice(0, 3) : [];
+      if (self._left.length && self.view === 'list' && !self.open && !self.dayOverride && self.day && self.root.querySelector('#taskList')) self.render();
+    });
+  };
+  /** 목록 맨 위 물음(오늘 세트에 아직 손대지 않았고, 이 세트에서 아직 안 골랐을 때만) */
+  App.prototype.leftAsk = function () {
+    var self = this, d = this.data || {}, day = this.day;
+    if (this.dayOverride || U.PREVIEW || !day) return null;
+    var x = this.leftOne(); if (!x) return null;
+    var a = U.store.get(this.leftName(), null);
+    if (a && a.day === day.dayset_id) return null;   // 오늘 세트마다 한 번만 물음(하다 만 세트가 여럿이어도)
+    if (day.tasks.some(function (t) { return t.status !== 'todo' || t.steps.some(function (st) { return st.sub; }); }) || (this.box.mem || []).length) return null;
+    var w = leftWhen(x, d.student && d.student.tz); if (!w) return null;
+    var pick = function (c) { U.store.set(self.leftName(), { id: x.dayset_id, day: day.dayset_id, c: c, at: Date.now() }); if (c === 'first') { self._fromLeft = x.dayset_id; self.goDay(x.dayset_id); } else self.render(); };
+    return el('section', { class: 'left-ask', 'data-act': 'left-ask', role: 'group', 'aria-label': U.tx('Unfinished homework', '하다 만 과제', 2) },
+      el('p', { class: 'left-t' }, U.tx('You have unfinished homework from ' + w[0] + '.', w[1] + '에 하다 만 과제가 있어요.', 2)),
+      el('p', { class: 'left-q' }, U.tx('Which one first?', '어느 것부터 할까요?', 2)),
+      el('div', { class: 'left-row' },
+        B(U.tx(w[0] + ' first', w[1] + ' 것부터', 1), 'ghost', function () { pick('first'); }, { 'data-act': 'left-first' }),
+        B(U.tx('Today’s first', '오늘 것부터', 1), 'pri', function () { pick('later'); }, { 'data-act': 'left-later' })));
+  };
+  /* 11/26 (선생님: S136·S012 '아직 안 했는데 벌써 한 걸로 나와요') 며칠 전에 시작하고 멈춘 세트를 다시 열면, 체크가 그날 한 것임을 한 줄로.
+   * 가장 이른 제출(없으면 연 시각)이 학생 현지 날짜로 오늘보다 앞이고, 아직 다 끝나지 않았을 때만. */
+  function startedNote(day, tz) {
+    var first = null;
+    (day.tasks || []).forEach(function (t) { (t.steps || []).forEach(function (x) { var a = x.sub && x.sub.submitted_at; if (a && (!first || a < first)) first = a; }); });
+    first = first || day.opened_at;
+    if (!first) return null;
+    var all = (day.tasks || []).every(function (t) { return t.status === 'done' || t.status === 'sent' || t.status === 'skipped'; });
+    if (all) return null;
+    var dt = new Date(first); if (isNaN(dt)) return null;
+    var loc = function (o) { try { return new Intl.DateTimeFormat(o.l, Object.assign({ timeZone: tz || undefined }, o.f)).format(dt); } catch (e) { return new Intl.DateTimeFormat(o.l, o.f).format(dt); } };
+    var ymd = loc({ l: 'en-CA', f: { year: 'numeric', month: '2-digit', day: '2-digit' } });
+    if (!(ymd < U.todayIn(tz))) return null;
+    var m = +ymd.slice(5, 7), dd = +ymd.slice(8, 10), en = loc({ l: 'en-US', f: { month: 'short', day: 'numeric' } });
+    return el('p', { class: 'hint1', style: { textAlign: 'left' }, 'data-act': 'started-note' },
+      U.tx('You started this homework on ' + en + '. The ticks are what you did then. Just do the rest.',
+        m + '월 ' + dd + '일에 시작한 과제예요. 체크된 것은 그때 한 거예요. 나머지만 하면 돼요.', 2));
+  }
   App.prototype.renderList = function () {
     var self = this, d = this.data, day = this.day;
     var title = this.dayOverride ? H.dayName(day.local_date, d.day.local_date) : L.today;
@@ -227,9 +294,13 @@
     }
     var gs = this.groups(), doneG = gs.filter(function (x) { return x.n === x.ts.length; }).length;
     var scr = el('section', { class: 'screen' });
+    this.leftLoad();
+    var ask = this.leftAsk(); if (ask) scr.appendChild(ask);
+    if (this.dayOverride && gs.length && doneG === gs.length) leftMark(this.dayOverride);   // 하다 만 세트를 끝냄 → 다시 안 물음
     scr.appendChild(el('div', { class: 'hero2', 'data-act': 'hero' },
       el('div', { class: 'hero-n', 'aria-label': doneG + ' / ' + gs.length }, String(doneG), el('small', {}, ' / ' + gs.length)), prog(gs.length ? doneG / gs.length : 0),
-      day.waiting_review ? el('p', { class: 'hint1', style: { textAlign: 'left' }, 'data-act': 'waiting-review' }, L.waitShort) : null));
+      day.waiting_review ? el('p', { class: 'hint1', style: { textAlign: 'left' }, 'data-act': 'waiting-review' }, L.waitShort) : null,
+      startedNote(day, d.student && d.student.tz)));
     if (!this.dayOverride) fbPins().filter(function (x) { return (d.previous || []).some(function (p) { return p.dayset_id === x.d; }); }).forEach(function (x) {   // T125b 📌 고정한 코멘트만 작게
       scr.appendChild(el('button', { class: 'pin-line', type: 'button', 'data-act': 'fb-pinned', onclick: function () { self.dayOverride = x.d; self.view = 'list'; self.load(true); } },
         '📌 ', H.dayName(x.ld, d.day.local_date) + ' · ' + x.n + ' ' + L.comments));
@@ -337,6 +408,16 @@
     var self = this, d = this.data || {};
     this._blDone = this._blDone || {};
     if (this.dayOverride) this._blDone[this.dayOverride] = 1;
+    if (this.dayOverride && this._fromLeft === this.dayOverride) {   // 11/26 하다 만 세트를 먼저 끝냄 → 오늘 과제로
+      foot.appendChild(B(U.tx('Go to today’s homework', '오늘 과제 하러 가기', 1), 'pri', function () { self._fromLeft = null; self.dayOverride = null; self.view = 'list'; self.skeleton(); self.load(true); window.scrollTo(0, 0); }, { 'data-act': 'left-back' }));
+      return;
+    }
+    var lx = !this.dayOverride ? this.leftOne() : null, lw = lx ? leftWhen(lx, d.student && d.student.tz) : null;
+    if (lx && lw && (d.schedule_mode === 'on_demand' || LEFT_DAILY)) {   // 11/26 오늘 것을 끝냄 → 하다 만 과제를 권함
+      foot.appendChild(B(U.tx('Finish ' + lw[0] + ' homework', lw[1] + ' 과제 끝내기', 1), 'pri', function () { self._fromLeft = lx.dayset_id; self.goDay(lx.dayset_id); }, { 'data-act': 'left-finish' }));
+      if (d.schedule_mode === 'on_demand' && d.next_set) { var nb2 = B(U.tx('Get next homework', '다음 과제 받기', 1), 'ghost', function () { nb2.disabled = true; self.nextSet(); }, { 'data-act': 'next-set' }); foot.appendChild(nb2); }
+      return;
+    }
     if (d.schedule_mode === 'on_demand' && !this.dayOverride) {
       if (!d.next_set) { foot.appendChild(el('p', { class: 'hint1', 'data-act': 'next-wait' }, U.tx('Your next homework is being prepared.', '다음 과제를 준비하고 있어요.'))); return; }
       var nb = B(U.tx('Get next homework', '다음 과제 받기', 1), 'pri', function () { nb.disabled = true; self.nextSet(); }, { 'data-act': 'next-set' });

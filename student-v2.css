@@ -389,3 +389,10 @@ html.sx.v2[data-theme="dark"] { --line-ui: #6F7A85; }
 .sx.v2 .nu-hint { margin: 2px 0 6px; font-size: 14px; color: var(--muted, #555); font-style: italic; text-align: center; overflow-wrap: anywhere; }
 .nu-hint, .cf-note { font-size: 14px; overflow-wrap: anywhere; }
 .cf-note { margin: 6px 0 0; width: 100%; text-align: left; }
+/* 11/26 하다 만 과제 물음 (목록 맨 위, 한 번) */
+.sx.v2 .left-ask { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 14px 14px 12px; margin: 0 0 14px; display: flex; flex-direction: column; gap: 6px; }
+.sx.v2 .left-ask .left-t { font-size: 16px; font-weight: 700; margin: 0; line-height: 1.35; }
+.sx.v2 .left-ask .left-q { font-size: 14px; color: var(--ink-2); margin: 0 0 4px; }
+.sx.v2 .left-ask .left-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sx.v2 .left-ask .left-row > * { width: 100%; min-height: 48px; margin: 0; }
+.sx.v2 .left-ask .left-row > .ghost { border: 1px solid var(--line); border-radius: 14px; }
