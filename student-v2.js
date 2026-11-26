@@ -216,7 +216,7 @@
    *  - 하다 만 세트 목록 = 수시 갱신 학생은 학생 사본 파일의 left(cloud/hw/snap_fill.py), 매일 학생은 서버 backlog 중 손댄 날(LEFT_DAILY 켰을 때).
    *  - 오늘 세트에 아직 손대지 않았을 때 목록 맨 위에 한 번 묻고(이 기기에 기억), '오늘 것부터'면 오늘 것을 끝낸 화면에서 다시 권함.
    *  - 그 세트를 끝내면 이 기기에 표시(사본 파일이 한 시간 늦어도 다시 안 물음). 서버 쓰기 없음. */
-  var LEFT_DAILY = false;   // 1단계: 수시 갱신 학생만(사본 파일에 left 가 있는 학생). 2단계에서 true
+  var LEFT_DAILY = true;   // 11/26 2단계: 매일 방식 학생도(서버 backlog 중 손댄 날)
   function leftDone() { return U.store.get('hw_left_done', {}); }
   function leftMark(id) { var m = leftDone(); m[id] = Date.now(); var ks = Object.keys(m); if (ks.length > 40) ks.sort(function (a, b) { return m[a] - m[b]; }).slice(0, ks.length - 40).forEach(function (k) { delete m[k]; }); U.store.set('hw_left_done', m); }
   function leftWhen(x, tz) {   // 그 과제를 한 날(없으면 계획 날) → ['Nov 19', '11월 19일']
