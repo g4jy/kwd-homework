@@ -697,7 +697,7 @@
   App.prototype.feedbackBox = function (f) {
     var self = this, box = el('div', { class: 'fb', 'data-act': 'card-feedback' }, el('div', { class: 'row' }, el('b', {}, U.tx('Dongjae', '선생님')), f.score5 ? U.stars(f.score5) : null),
       (f.tags || []).length ? el('div', { class: 'tags', style: { margin: '4px 0' } }, f.tags.map(function (x) { return el('span', { class: 'chip k' }, x); })) : null,
-      f.comment ? el('div', { lang: 'ko' }, f.comment) : null);
+      f.comment ? el('div', { lang: 'ko', class: 'fb-cmt' }, f.comment) : null);
     if (f.audio_file_id) {
       var slot = el('div', { class: 'recbox', style: { marginTop: '6px' } }, btn([U.icon('speaker'), U.tx('Dongjae’s voice', '선생님 목소리')], 'xs', function () {
         slot.innerHTML = '<span class="tiny">…</span>';
@@ -975,14 +975,17 @@
   }
   function why(a) { return U.lang() === 'ko' ? a.why_ko || a.why_en : a.why_en || a.why_ko; }
   function verdictCard(t, st, a) {
-    var v = VERDICT[a.verdict]; if (!v) return null;
-    var free = t.type === 'sp_qa' || t.type === 'write' || st.kind === 'ko_answer', w = why(a), mine = a.ocr_text || '';
-    return el('div', { class: 'res ' + v[0], 'data-act': 'verdict', 'data-v': a.verdict },
+    var vk = (a.status === 'correct' || (a.edited && /^Correct\b/i.test(a.comment_en || ''))) && (a.verdict === 'error' || a.verdict === 'meaning_diff') ? 'same' : a.verdict;
+    var v = VERDICT[vk]; if (!v) return null;
+    var free = t.type === 'sp_qa' || t.type === 'write' || st.kind === 'ko_answer', w = why(a), mine = a.ocr_text || ((st.sub && st.sub.answer && st.sub.answer.typed) || '');
+    var cTx = cmt(a), showCmt = cTx && cTx !== w && (a.edited || a.text_by === 'ai_review' || !w);
+    return el('div', { class: 'res ' + v[0], 'data-act': 'verdict', 'data-v': vk },
       el('div', { style: { fontWeight: 600 } }, free && v[0] === 'ok' ? U.tx('Your answer works ✓', '좋은 답이에요 ✓') : U.tx(v[1], v[2])),   // T125 열린 답 = 판정 먼저, 예시는 다른 답 예
-      el('div', { class: 'small', 'data-act': 'your-sentence' }, a.typed ? U.tx('You wrote: ', '쓴 답: ') : U.tx('We read: ', '읽은 글자: '), marked(mine, a.verdict === 'same' ? [] : a.wrong)),
-      a.verdict === 'error' && a.corrected && a.corrected !== mine ? el('div', { class: 'small', 'data-act': 'fixed' }, U.tx('Fixed: ', '고친 문장: '), U.diffNode(mine, a.corrected)) : null,
-      a.verdict !== 'same' && a.model ? el('div', { class: 'small', 'data-act': 'model' }, free ? U.tx('Example: ', '답 예시: ') : U.tx('Model: ', '모범 문장: '), el('span', { lang: 'ko' }, a.model)) : null,
-      w ? el('div', { class: 'small', 'data-act': 'why', lang: w === a.why_ko ? 'ko' : 'en' }, w) : null);
+      mine ? el('div', { class: 'small', 'data-act': 'your-sentence' }, (a.typed || !a.ocr_text) ? U.tx('You wrote: ', '쓴 답: ') : U.tx('We read: ', '읽은 글자: '), marked(mine, vk === 'same' ? [] : a.wrong)) : null,
+      vk === 'error' && a.corrected && a.corrected !== mine ? el('div', { class: 'small', 'data-act': 'fixed' }, U.tx('Fixed: ', '고친 문장: '), U.diffNode(mine, a.corrected)) : null,
+      vk !== 'same' && a.model ? el('div', { class: 'small', 'data-act': 'model' }, free ? U.tx('Example: ', '답 예시: ') : U.tx('Model: ', '모범 문장: '), el('span', { lang: 'ko' }, a.model)) : null,
+      w ? el('div', { class: 'small', 'data-act': 'why', lang: w === a.why_ko ? 'ko' : 'en' }, w) : null,
+      showCmt ? cmtNode(a, 'small') : null);
   }
   /* T146zj 녹음 결과 '모범 소리 듣고 다시': 선생님 녹음(또는 선생님 클론, tts/ 목록)에 있는 문장일 때만 단추. 없으면 단추 없음(브라우저 TTS 안 씀).
      문장 = 모범 문장(mkPack_ m) → 고친 문장 → 녹음 목표(target) 순서로 첫 번째로 소리가 있는 것. 누르면 듣고 → 이 녹음 단계만 다시(student.skip_task redo + step_id) */
@@ -1018,20 +1021,58 @@
     if (buf) out.push(buf);
     return el('span', { lang: 'ko' }, out);
   }
+  function pitchSvgNode(stuSt, refSt) {
+    if (!Array.isArray(stuSt) || stuSt.length < 4 || !document.createElementNS) return null;
+    var ns = 'http://www.w3.org/2000/svg', W = 180, H = 36, svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('class', 'pitch-svg');
+    svg.setAttribute('data-act', 'pitch-svg');
+    svg.setAttribute('aria-hidden', 'true');
+    function pts(arr) {
+      return arr.map(function (v, i) {
+        var x = Math.round((i / Math.max(1, arr.length - 1)) * (W - 8) + 4);
+        var cl = Math.max(-7, Math.min(7, Number(v) || 0));
+        var y = Math.round(H / 2 - (cl / 7) * (H / 2 - 4));
+        return x + ',' + y;
+      }).join(' ');
+    }
+    if (Array.isArray(refSt) && refSt.length >= 4) {
+      var pRef = document.createElementNS(ns, 'polyline');
+      pRef.setAttribute('fill', 'none'); pRef.setAttribute('stroke', 'currentColor'); pRef.setAttribute('stroke-opacity', '0.3');
+      pRef.setAttribute('stroke-width', '2'); pRef.setAttribute('stroke-dasharray', '3 3'); pRef.setAttribute('points', pts(refSt));
+      svg.appendChild(pRef);
+    }
+    var pStu = document.createElementNS(ns, 'polyline');
+    pStu.setAttribute('fill', 'none'); pStu.setAttribute('stroke', 'var(--accent)');
+    pStu.setAttribute('stroke-width', '2.2'); pStu.setAttribute('stroke-linecap', 'round'); pStu.setAttribute('points', pts(stuSt));
+    svg.appendChild(pStu);
+    return svg;
+  }
   function heardCard(a, t, st, self) {
     var hw = a.heard_words || [], v = a.verdict === 'same' ? ['ok', 'Clear — we heard your sentence', '잘 들렸어요'] : hw.length ? ['close', 'Some parts sounded different', '다르게 들린 곳이 있어요'] : ['wait', 'What we heard', '들린 말'];
     var ps = typeof a.pron_score === 'number' ? a.pron_score : null;   // T146zk R56 발음 점수 1~5 + 다르게 들린 낱말 한 줄
     if (ps !== null) v[0] = ps >= 4 ? 'ok' : 'close';
+    var hasInton = typeof a.intonation_score === 'number';
+    var intonTip = U.lang() === 'ko' ? (a.intonation_tip_ko || a.intonation_tip_en) : (a.intonation_tip_en || a.intonation_tip_ko);
     var card = el('div', { class: 'res ' + v[0], 'data-act': 'heard-card', 'data-v': a.verdict || '' },
-      el('div', { style: { fontWeight: 600 } }, U.tx(v[1], v[2]), ps !== null ? el('span', { 'data-act': 'pron-score', style: { float: 'right' } }, U.tx('Pronunciation ', '발음 ') + ps + ' / 5') : null),
+      el('div', { class: 'row wrapr', style: { fontWeight: 600, justifyContent: 'space-between' } },
+        el('span', {}, U.tx(v[1], v[2])),
+        el('span', { class: 'row', style: { gap: '6px' } },
+          a.pron_native ? el('span', { class: 'pron-native-badge', 'data-act': 'pron-native' }, U.tx('Native-like', '원어민 발음')) : null,
+          ps !== null ? el('span', { 'data-act': 'pron-score' }, U.tx('Pronunciation ', '발음 ') + ps + ' / 5') : null)),
       a.transcript ? el('div', { class: 'small', 'data-act': 'heard' }, U.tx('We heard: ', '들린 말: '), marked(a.transcript, hw.map(function (x) { return x.heard; }))) : null,
       (a.diff_syl || []).length && a.target ? el('div', { class: 'small', 'data-act': 'syl-line' }, U.tx('Sounds to practise: ', '다시 연습할 소리: '), sylMarked(a.target, a.diff_syl)) : null,
+      hasInton ? el('div', { class: 'inton-row small', 'data-act': 'intonation-row' },
+        el('span', { class: 'inton-pill', 'data-act': 'intonation-score' }, U.tx('Intonation ', '억양 유사도 ') + Math.round(a.intonation_score) + '%'),
+        pitchSvgNode(a.pitch_stu_st, a.pitch_ref_st),
+        intonTip ? el('div', { class: 'tiny', style: { flexBasis: '100%' }, 'data-act': 'intonation-tip' }, intonTip) : null) : null,
       ps !== null ? (hw.length ? el('div', { class: 'small', 'data-act': 'heard-line' }, U.tx('Sounded different: ', '다르게 들린 낱말: '), hw.slice(0, 3).map(function (x, i) {
         return el('span', { lang: 'ko' }, (i ? ', ' : ''), '“' + (x.want || x.heard) + '”', x.want && x.heard ? ' → “' + x.heard + '”' : x.want ? U.tx(' (not heard)', ' (안 들림)') : U.tx(' (extra)', ' (더 들림)'));
       })) : null) : hw.slice(0, 3).map(function (x) {
         if (!x.want) return el('div', { class: 'small', 'data-act': 'heard-word' }, U.tx('Extra: ', '더 들린 말: '), el('b', { lang: 'ko' }, x.heard));
         return el('div', { class: 'small', 'data-act': 'heard-word' }, el('span', { lang: 'ko' }, '“' + x.want + '”'), x.heard ? U.tx(' sounded like ', ' → ') : U.tx(' — not heard', ' — 안 들렸어요'), x.heard ? el('b', { lang: 'ko' }, '“' + x.heard + '”') : null);
-      }));
+      }),
+      (a.edited || (!hw.length && a.comment_en && a.verdict !== 'same')) ? cmtNode(a, 'small') : null);
     if (a.verdict !== 'same') modelRedo(self, t, st, a, card);   // T146zj 잘 들린 녹음엔 단추 없음
     return card;
   }
@@ -1103,13 +1144,16 @@
       box.appendChild(el('div', { class: 'res ' + c3, 'data-act': 'dictation-result' }, el('div', { class: 'tiny' }, a.status === 'correct' ? U.tx('Correct!', '맞아요!') : U.tx('Compare with the sentence', '들은 문장과 비교')), U.diffNode(a.typed || '', a.target || a.correct || '')));
     } else if (st.kind === 'read') {
       box.appendChild(el('div', { class: 'tiny' }, (a.looked_up || []).length ? U.tx('Words you looked up come back in review: ', '찾아본 낱말은 복습에 다시 나와요: ') + a.looked_up.join(', ') : U.tx('Read ✓', '읽음 ✓')));
-    } else if ((st.kind === 'hand' || st.kind === 'ko_answer') && a.verdict && VERDICT[a.verdict] && !a.edited) {   // T146zg
+    } else if ((st.kind === 'hand' || st.kind === 'ko_answer') && a.verdict && VERDICT[a.verdict]) {   // T146zg (edited 포함: 선생님 확정 후에도 카드 유지)
       box.appendChild(verdictCard(t, st, a));
-    } else if (st.kind === 'record' && a.release && s.grade_status === 'auto_checked') {   // T146zg 문장 말하기
+    } else if (st.kind === 'record' && a.release && (s.grade_status === 'auto_checked' || s.grade_status === 'teacher_reviewed')) {   // T146zg 문장 말하기 (선생님 확인 뒤에도 유지)
       box.appendChild(heardCard(a, t, st, this));
-    } else if ((st.kind === 'hand' || st.kind === 'ko_answer') && a.ocr_text) {
+    } else if ((st.kind === 'hand' || st.kind === 'ko_answer') && (a.ocr_text || (s.answer || {}).typed || a.comment_en)) {
       var cls = a.status === 'correct' ? 'ok' : a.status === 'close' ? 'close' : 'bad';
-      box.appendChild(el('div', { class: 'res ' + cls }, el('div', { class: 'tiny' }, (a.typed ? U.tx('You typed', '쓴 답') : U.tx('What we read from your writing', '손글씨에서 읽은 글자'))), U.diffNode(a.ocr_text, a.corrected || a.target || a.ocr_text),
+      var shownText = a.ocr_text || (s.answer || {}).typed || '';
+      box.appendChild(el('div', { class: 'res ' + cls },
+        shownText ? el('div', { class: 'tiny' }, ((a.typed || !(a.ocr_text)) ? U.tx('You typed', '쓴 답') : U.tx('What we read from your writing', '손글씨에서 읽은 글자'))) : null,
+        shownText ? U.diffNode(shownText, a.corrected || a.target || shownText) : null,
         cmtNode(a, 'small')));
     } else if (st.kind === 'type_en' && s.grade_status !== 'teacher_reviewed') {
       var c2 = a.status === 'correct' ? 'ok' : a.status === 'close' ? 'close' : 'bad';
@@ -1117,7 +1161,7 @@
     }
     (s.feedback || []).forEach(function (f) {
       if (f.source !== 'teacher') return;
-      box.appendChild(el('div', { class: 'fb' }, el('div', { class: 'row' }, el('b', {}, U.tx('Dongjae', '선생님')), f.score5 ? U.stars(f.score5) : null), f.comment ? el('div', { lang: 'ko' }, f.comment) : null));   // T117d 글만 있는 피드백에 빈 별 0개 표시 안 함
+      box.appendChild(el('div', { class: 'fb' }, el('div', { class: 'row' }, el('b', {}, U.tx('Dongjae', '선생님')), f.score5 ? U.stars(f.score5) : null), f.comment ? el('div', { lang: 'ko', class: 'fb-cmt' }, f.comment) : null));   // T117d 글만 있는 피드백에 빈 별 0개 표시 안 함
     });
     if (st.kind === 'record' && recAgain(s))   // T117e '다시 녹음' 안내가 붙은 녹음 단계만: 이 단계만 다시(앞 기록은 서버에 superseded), 새 녹음은 확인 대기 줄로
       box.appendChild(el('div', { class: 'actions', 'data-act': 'record-again-row' }, btn(U.tx('Record again', '다시 녹음하기'), 'sm', function () { self.redoStep(t, st); }, { 'data-act': 'record-again' })));
@@ -1146,6 +1190,7 @@
     return U.speakCues(ts[turn || 0], ts.length === 1 ? t.scene_en : null, lv);
   };
   App.prototype.stepInput = function (t, st) {
+    if (U.activeKind) U.activeKind(st && st.kind ? st.kind : '');
     var self = this, b = el('div', { class: 'step-b' }), getAns = null, getMedia = null, getMedia2 = null;
     var doneBtn = btn(U.tx('Done ✓', '완료 ✓'), 'primary sm', function () { self.submitStep(t, st, getAns ? getAns() : {}, getMedia, doneBtn, getMedia2); }, { 'data-act': 'done', disabled: true });
     // T119 꺼진 완료 버튼 옆에는 왜 꺼졌는지 한 줄 (켜지면 사라지거나 '녹음은 선택' 안내)

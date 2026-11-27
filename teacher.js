@@ -44,7 +44,7 @@
   App.prototype.render = function () {
     var self = this;
     this.root.innerHTML = '';
-    this.root.setAttribute('data-tv', /^(tq|hw|queue|student)$/.test(this.view) ? '1' : '0');   // T113 teacher-view.css 범위
+    this.root.setAttribute('data-tv', /^(home|tq|hw|queue|student)/.test(this.view) ? '1' : '0');   // T113 + v4 허브 16px 가독성 적용
     var w = el('div', { class: 'wrap wide' });
     w.appendChild(el('div', { class: 'top' }, el('div', { class: 'brand' }, 'KWD ', el('b', {}, '숙제'), el('span', { class: 'tiny' }, ' · 선생님')), el('span', { class: 'grow' }),
       el('div', { class: 'tabs', role: 'tablist' },

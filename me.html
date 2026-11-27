@@ -7,11 +7,12 @@
 <meta name="theme-color" content="#F6F7FB">
 <link rel="manifest" href="manifest-me.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css?v=20261126023707">
+<link rel="stylesheet" href="app.css?v=20261127021546">
 <style>
 /* T109 학생 허브: 링크 하나 → 오늘 과제 · 수업(화이트보드) · 단어 카드. 토큰은 app.css :root (앱 디자인 언어) */
 .hub { max-width: 480px; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 20px 40px; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 .hub h1 { font-size: 28px; line-height: 1.2; margin: 16px 0 24px; font-weight: 700; letter-spacing: -0.01em; }
+.hub-strip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; margin: -12px 0 18px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13.5px; font-weight: 600; align-self: flex-start; }
 .hub-tiles { display: flex; flex-direction: column; gap: 12px; }
 .hub-tile { display: flex; align-items: center; gap: 16px; min-height: 88px; padding: 16px 20px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line);
   color: var(--ink); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .12s ease; }
@@ -54,8 +55,8 @@
 </head>
 <body>
 <div id="app" class="hub" aria-live="polite"></div>
-<script src="config.js?v=20261126023707"></script>
-<script src="ui.js?v=20261126023707"></script>
+<script src="config.js?v=20261127021546"></script>
+<script src="ui.js?v=20261127021546"></script>
 <script>
 (function () {
   'use strict';
@@ -136,7 +137,13 @@
     }
     if (nOv > 0) extra += '<div class="hub-late" data-act="hub-late"><i></i>' + nOv + (nOv === 1 ? ' earlier task left' : ' earlier tasks left') + '</div>';
     var ns = (d.flashcard_sets || []).length;
-    var html = '<h1>Hi, ' + esc(d.first_name || 'there') + '</h1><div class="hub-tiles">' +
+    var sp = get('kwd_shared_progress_v1') || {}, spBits = [];
+    if (sp.hw_streak) spBits.push(sp.hw_streak + '-day streak');
+    if (sp.hw_words_known) spBits.push(sp.hw_words_known + ' words learned');
+    else if (sp.fc_known) spBits.push(sp.fc_known + ' cards mastered');
+    if (sp.hw_course_pct) spBits.push('Course ' + sp.hw_course_pct + '%');
+    var strip = spBits.length ? '<div class="hub-strip" data-act="hub-progress-strip">' + esc(spBits.join(' · ')) + '</div>' : '';
+    var html = '<h1>Hi, ' + esc(d.first_name || 'there') + '</h1>' + strip + '<div class="hub-tiles">' +
       tile({ act: 'hub-homework', st: st, extra: extra, icon: 'book', title: 'Homework', meta: hw, href: 'student.html?k=' + encodeURIComponent(k) + (PREVIEW ? '#preview' : '') }) +
       (d.check ? tile({ act: 'hub-check', st: d.check.done ? 'done' : '', icon: 'check', title: 'Check',   // T087c 진단 칸 (과제와 따로, 하루 한 번 약 2분)
         meta: d.check.done ? 'Done today' : d.check.ready ? 'About ' + (d.check.min || 2) + ' min · words and grammar' : 'Next check tomorrow',

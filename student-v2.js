@@ -301,10 +301,20 @@
       el('div', { class: 'hero-n', 'aria-label': doneG + ' / ' + gs.length }, String(doneG), el('small', {}, ' / ' + gs.length)), prog(gs.length ? doneG / gs.length : 0),
       day.waiting_review ? el('p', { class: 'hint1', style: { textAlign: 'left' }, 'data-act': 'waiting-review' }, L.waitShort) : null,
       startedNote(day, d.student && d.student.tz)));
-    if (!this.dayOverride) fbPins().filter(function (x) { return (d.previous || []).some(function (p) { return p.dayset_id === x.d; }); }).forEach(function (x) {   // T125b 📌 고정한 코멘트만 작게
-      scr.appendChild(el('button', { class: 'pin-line', type: 'button', 'data-act': 'fb-pinned', onclick: function () { self.dayOverride = x.d; self.view = 'list'; self.load(true); } },
-        '📌 ', H.dayName(x.ld, d.day.local_date) + ' · ' + x.n + ' ' + L.comments));
-    });
+    if (!this.dayOverride) {
+      var snFb = fbSeen(), unreadPrev = (d.previous || []).filter(function (p) { return p.feedback && !snFb[pKey(p)]; });
+      if (unreadPrev.length) {
+        var topPrev = unreadPrev[0];
+        scr.appendChild(el('button', { class: 'fb-banner', type: 'button', 'data-act': 'fb-unread-banner', onclick: function () { self.dayOverride = topPrev.dayset_id; self.view = 'list'; self.load(true); } },
+          el('span', { class: 'fb-b-ic', 'aria-hidden': 'true' }, ic('check')),
+          el('span', { class: 'fb-b-t' }, U.tx('New feedback from Dongjae (' + unreadPrev.length + ')', '선생님 새 첨삭이 도착했어요 (' + unreadPrev.length + '건)', 2)),
+          el('span', { class: 'fb-b-go' }, U.tx('View', '바로 보기', 1), ' ›')));
+      }
+      fbPins().filter(function (x) { return (d.previous || []).some(function (p) { return p.dayset_id === x.d; }); }).forEach(function (x) {   // T125b 📌 고정한 코멘트만 작게
+        scr.appendChild(el('button', { class: 'pin-line', type: 'button', 'data-act': 'fb-pinned', onclick: function () { self.dayOverride = x.d; self.view = 'list'; self.load(true); } },
+          '📌 ', H.dayName(x.ld, d.day.local_date) + ' · ' + x.n + ' ' + L.comments));
+      });
+    }
     // T108d: 묶음 행을 누르면 그 아래 문항 목록이 펼쳐짐(새 화면 아님, 한 번에 하나, 300ms ease-out, 줄이기 설정이면 바로). 문항 행 → 문항 화면
     var list = el('div', { class: 'list', id: 'taskList' });
     if (this._openG && !gs.some(function (x) { return x.g === self._openG; })) this._openG = null;
@@ -326,6 +336,7 @@
     if (nextG) foot.appendChild(B(L.go, 'pri', function () { self.goGroup(nextG.g); }, { 'data-act': 'continue' }));
     else { scr.insertBefore(this.saveNode(), scr.firstChild); scr.appendChild(el('p', { class: 'hint1', 'data-act': 'all-done' }, L.allDone)); scr.appendChild(this.endCard()); this.moreButtons(foot); }   // T146zx 끝 화면 맨 위 = 보내는 중 / Done ✓
     U.activeDay(day.dayset_id);   // T146q A4 이 세트를 보고 있는 시간
+    if (U.activeKind) U.activeKind('');
     return this.shell(top, scr, foot);
   };
   /* T146q (선생님 A4) 끝 화면: 회색 글 한 줄 대신 — 화면을 보고 있던 시간 + 분량·난도 3단계(이모지 + 낱말, 설정 언어). 답은 서버(daysets.end_json) */
@@ -621,7 +632,7 @@
       var kB = this.bIdx(t);
       bar = dotsB(t.steps.length, kB); cnt = (kB + 1) + '/' + t.steps.length;
     } else { r = ts.filter(finished).length / Math.max(1, ts.length); cnt = (i + 1) + '/' + ts.length; }
-    var top = el('header', { class: 'bar-top back' }, iconBtn('x', L.close, function () { self.closeTask(); }, { 'data-act': 'close-task' }), bar || prog(r), el('span', { class: 'count', 'data-act': 'count' }, cnt));
+    var top = el('header', { class: 'bar-top back' }, iconBtn('x', L.close, function () { if (U.activeKind) U.activeKind(''); self.closeTask(); }, { 'data-act': 'close-task' }), bar || prog(r), el('span', { class: 'count', 'data-act': 'count' }, cnt));
     var foot = el('footer', { class: 'foot' }), stage;
     if (t.type === 'cards' && (pracOn || (!finished(t) && t.steps.some(function (s) { return !s.sub; })))) stage = this.cardStage(t, foot);
     else if (t.type === 'diag' && !finished(t) && t.steps.some(function (s) { return !s.sub; })) stage = this.diagStage(t);
@@ -634,6 +645,8 @@
       ? B(L.skipAll, 'ghost', function () { self.askSkipAll(t); }, { 'data-act': 'skip-all' })
       : B(L.skip, 'ghost', function () { self.skipTask(t); }, { 'data-act': 'skip-task' })));
     var app = this.shell(top, stage, foot);
+    var activeSt = (t.steps || []).filter(function (s) { return !s.sub; })[0];
+    if (U.activeKind) U.activeKind(activeSt ? activeSt.kind : '');
     app.setAttribute('data-task', t.task_id); app.setAttribute('data-type', H.typeKey(t));
     return app;
   };
@@ -1097,6 +1110,27 @@
     var thisWeek = cnt.length ? cnt[cnt.length - 1] : 0;
     var top = el('header', { class: 'bar-top back' }, iconBtn('back', L.back, function () { self.view = 'list'; self._prog = null; self.render(); }, { 'data-act': 'close' }), el('h1', {}, L.prog));
     var scr = el('section', { class: 'screen', 'data-act': 'progress' });
+    var LsPre = p.lessons || { units: [], reviews: [] }, doneUnitsN = (LsPre.units || []).filter(function (u) { return u.total && u.done >= u.total; }).length;
+    var maxUnitN = (LsPre.units || []).reduce(function (m, u) { return Math.max(m, Number(umeta(u).n || u.n || 0)); }, 0);
+    var curUnitN = Math.max(doneUnitsN, maxUnitN), totalUnits = 261;
+    var coursePct = Math.min(100, Math.round((curUnitN / totalUnits) * 100));
+    var knownW = Number(p.words_known || 0), nextWordGoal = knownW < 50 ? 50 : knownW < 150 ? 150 : knownW < 300 ? 300 : Math.ceil((knownW + 1) / 200) * 200;
+    var wordToGo = Math.max(1, nextWordGoal - knownW);
+    if (U.syncSharedProgress) U.syncSharedProgress({ hw_streak: p.streak || 0, hw_words_known: knownW, hw_units_done: curUnitN, hw_course_pct: coursePct, hw_week_days: thisWeek });
+    var sharedP = U.readSharedProgress ? U.readSharedProgress() : {};
+    var crossBits = [];
+    if (sharedP.fc_known) crossBits.push(U.tx('Word cards mastered: ', '단어장 외운 단어: ') + sharedP.fc_known);
+    if (sharedP.fc_pct) crossBits.push(U.tx('Path: ', '코스 진행률: ') + sharedP.fc_pct + '%');
+    scr.appendChild(el('div', { class: 'card2 goal-card', 'data-act': 'p-goal-card' },
+      el('div', { class: 'goal-head' },
+        el('b', {}, U.tx('Course progress · Korean Lv.1–500', '전체 한국어 과정 진도 (261단원)')),
+        el('span', { class: 'goal-pct', 'data-act': 'p-course-pct' }, coursePct + '%')),
+      el('div', { class: 'prog goal-bar', 'data-act': 'p-course-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(coursePct) },
+        el('i', { style: { width: Math.max(3, coursePct) + '%' } })),
+      el('div', { class: 'goal-meta' },
+        el('span', {}, U.tx('Units reached: ', '도달 단원: ') + curUnitN + ' / ' + totalUnits),
+        el('span', {}, U.tx(wordToGo + ' words to ', '다음 ') + nextWordGoal + U.tx(' milestone', '단어 목표까지 ' + wordToGo + '개'))),
+      crossBits.length ? el('div', { class: 'goal-cross', 'data-act': 'p-cross-app' }, crossBits.join(' · ')) : null));
     scr.appendChild(el('div', { class: 'card2' }, el('div', { class: 'big-n', 'data-act': 'p-streak' }, ic('flame'), String(p.streak || 0)), el('p', { class: 'cap' }, L.streak)));
     scr.appendChild(el('div', { class: 'card2' },
       el('div', { class: 'pair' }, el('div', {}, el('b', { 'data-act': 'p-known' }, String(p.words_known || 0)), el('p', { class: 'cap' }, L.known)),

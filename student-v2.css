@@ -396,3 +396,15 @@ html.sx.v2[data-theme="dark"] { --line-ui: #6F7A85; }
 .sx.v2 .left-ask .left-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sx.v2 .left-ask .left-row > * { width: 100%; min-height: 48px; margin: 0; }
 .sx.v2 .left-ask .left-row > .ghost { border: 1px solid var(--line); border-radius: 14px; }
+/* v4 미확인 첨삭 배너 + 진척율 목표 게이지 (이모지 0) */
+.sx.v2 .fb-banner { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 14px; border: 1.5px solid var(--accent); border-radius: 14px; background: var(--accent-soft); color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer; }
+.sx.v2 .fb-banner .fb-b-ic { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
+.sx.v2 .fb-banner .fb-b-ic .ico.v { width: 16px; height: 16px; }
+.sx.v2 .fb-banner .fb-b-t { flex: 1; min-width: 0; }
+.sx.v2 .fb-banner .fb-b-go { flex: none; font-size: 14px; color: var(--accent); font-weight: 700; }
+.sx.v2 .goal-card { gap: 10px; }
+.sx.v2 .goal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 15px; }
+.sx.v2 .goal-pct { font-size: 20px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.sx.v2 .goal-bar { height: 10px; }
+.sx.v2 .goal-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; font-size: 13.5px; color: var(--ink-2); }
+.sx.v2 .goal-cross { padding-top: 8px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--ink); font-weight: 500; }

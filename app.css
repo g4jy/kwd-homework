@@ -1020,3 +1020,9 @@ div.hub-lesson, div.hub-rec { cursor: default; }
 /* T126c 녹음 소리 없음·마이크 바쁨 안내, 수업 중 안내 줄 = 녹음 줄 아래 전체 폭 */
 .recbox .rec-silent, .recbox [data-act="rec-class"] { flex-basis: 100%; }
 .recbox .rec-silent { color: var(--bad); font-weight: 600; }
+/* v4 학생 피드백 줄바꿈 · 원어민 발음 배지 · 한국어 억양 곡선 */
+.fb .fb-cmt, .fb [lang="ko"] { white-space: pre-line; overflow-wrap: anywhere; }
+.pron-native-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: var(--ok); color: #fff; font-size: 12px; font-weight: 700; }
+.inton-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
+.inton-pill { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-2); font-size: 13px; font-weight: 600; color: var(--ink); }
+.pitch-svg { width: 150px; height: 32px; display: block; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }

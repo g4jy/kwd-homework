@@ -1,7 +1,7 @@
 /* sw.js — 앱 푸시 받기 (PWA). 받으면 Apps Script 에 'delivered', 누르면 학생 화면 열기(→ 'opened' 는 학생 화면이 기록) */
 var CFG = { key: null, api: null };
 // 10/20 홈 화면 앱: 오프라인 껍데기 — 같은 사이트 화면 파일만, 인터넷 먼저(늘 최신) · 안 되면 저장본. 서버(Apps Script) 요청은 손대지 않음
-var SHELL = 'kwd-shell-v88', SHELL_FILES = ['student.html', 'me.html', 'unit-meta.js', 'prefs/ui.json', 'app.css', 'student-v2.css', 'config.js', 'hangul.js', 'pron.js', 'ui.js', 'student.js', 'student-v2.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+var SHELL = 'kwd-shell-v89', SHELL_FILES = ['student.html', 'me.html', 'unit-meta.js', 'prefs/ui.json', 'app.css', 'student-v2.css', 'config.js', 'hangul.js', 'pron.js', 'ui.js', 'student.js', 'student-v2.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', function (e) { self.skipWaiting(); e.waitUntil(caches.open(SHELL).then(function (c) { return c.addAll(SHELL_FILES); }).catch(function () {})); });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('kwd-shell-') === 0 && k !== SHELL; }).map(function (k) { return caches.delete(k); })); })

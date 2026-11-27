@@ -136,11 +136,19 @@
       if (bar) { bar.textContent = '서버에 닿지 못했어요 — ' + ago(cached.got_at || cached.made_at) + ' 값을 보여 줘요 (' + e.message + ')'; bar.classList.add('warn'); }
     });
   };
+  function freshBadge(madeAt) {
+    if (!madeAt) return el('span', { class: 'hub-fresh-badge warn', 'data-act': 'home-fresh-badge' }, '동기화 필요 · 시각 미상');
+    var h = (Date.now() - new Date(madeAt).getTime()) / 3600000;
+    var lbl = h <= 48 ? '최신 동기화' : '동기화 필요 · ' + ago(madeAt);
+    return el('span', { class: 'hub-fresh-badge ' + (h <= 48 ? 'ok' : 'warn'), 'data-act': 'home-fresh-badge' }, lbl);
+  }
   App.prototype.drawHome = function (main, d, stale) {
     var self = this, S = {}; (d.students || []).forEach(function (s) { S[s.student_id] = s; });
     main.innerHTML = '';
     var now = new Date(), today = ymdLocal(now), tm = new Date(now.getTime() + 864e5), tomorrow = ymdLocal(tm);
-    main.appendChild(el('div', { class: 'row wrapr hub-top' }, el('h1', {}, '선생님 허브'), el('span', { class: 'grow' }),
+    main.appendChild(el('div', { class: 'row wrapr hub-top' }, el('h1', {}, '선생님 허브'),
+      freshBadge(d.made_at),
+      el('span', { class: 'grow' }),
       el('span', { class: 'tiny', 'data-act': 'home-stale' }, stale ? ago(d.got_at || d.made_at) + ' 값 · 새로 받는 중…' : '서버 ' + ago(d.made_at) + ' 기준'),
       btn('새로 고침', 'ghost sm', function () { self.homeFresh = true; self.go('home'); }, { 'data-act': 'home-refresh' })));
     main.appendChild(this.holdBox());   // T087c 맨 위 '확인할 것 n' (애매 글씨 보류만)
@@ -212,10 +220,16 @@
     if (s) {
       chips.push(el('span', { class: 'chip k' }, s.level || s.band || 'L?'));
       if (s.next_unit) chips.push(el('span', { class: 'chip k' }, unitShort(s.next_unit)));
+      if (s.course && typeof s.course.pct === 'number' && s.course.pct > 0) chips.push(el('span', { class: 'chip k' }, '진도 ' + s.course.pct + '%'));
+      if (s.roadmap && typeof s.roadmap.hw_rate === 'number') chips.push(el('span', { class: 'chip ' + (s.roadmap.hw_rate >= 70 ? 'done' : s.roadmap.hw_rate < 40 ? 'bad' : 'doing') }, '과제율 ' + s.roadmap.hw_rate + '%'));
       chips.push(dayChip(s.today && s.today.state));
     }
+    var subBits = [];
+    if (s && s.roadmap && s.roadmap.focus) subBits.push('초점: ' + s.roadmap.focus);
+    if (s && s.word_db && s.word_db.total_class_words) subBits.push('수업 단어 ' + s.word_db.total_class_words + '개');
     var body = [el('span', { class: 'row', style: { gap: '10px' } }, el('b', { class: 'hub-time' }, hhmm(x.start)), el('b', { class: 'grow hub-who' }, (s && s.name) || x.label)),
-      el('span', { class: 'row hub-chips' }, chips)];
+      el('span', { class: 'row hub-chips' }, chips),
+      subBits.length ? el('span', { class: 'hub-lesson-sub' }, subBits.join(' · ')) : null];
     if (!s) body.push(el('span', { class: 'tiny' }, x.sid ? '학생 카드 아직 없음' : '학생 기록 없음 (체험·새 학생)'));
     return el(s ? 'button' : 'div', { type: s ? 'button' : null, class: 'card hub-lesson' + (past ? ' past' : '') + (live ? ' live' : ''), 'data-sid': x.sid || '',
       onclick: s ? function () { self.go('home_st', x.sid); } : null }, body);
@@ -235,6 +249,36 @@
         el('div', { class: 'small' }, meta.join(' · ')),
         next ? el('div', { class: 'small hub-next' }, '다음 수업 ' + md(ymdLocal(new Date(next.start))) + ' ' + hhmm(next.start)) : null));
 
+      // 상단 10초 핵심 브리핑 카드 (진도·과제율·성취율 3대 막대 + 오늘 수업 초점 + 데이터 최신성)
+      var cr = s.course || {}, rm = s.roadmap || {}, wb = s.word_db || {}, fr = s.freshness || {};
+      var cPct = typeof cr.pct === 'number' ? cr.pct : 0;
+      var hwPct = typeof rm.hw_rate === 'number' ? rm.hw_rate : null;
+      var achPct = typeof rm.achieve === 'number' ? rm.achieve : null;
+      function gauge(lbl, valTxt, subTxt, pctNum, cls) {
+        return el('div', { class: 'hub-g' },
+          el('div', { class: 'hub-g-lbl' }, lbl),
+          el('div', { class: 'hub-g-val' }, valTxt),
+          el('div', { class: 'hub-gbar' + (cls ? ' ' + cls : '') }, el('i', { style: { width: Math.max(4, Math.min(100, pctNum || 0)) + '%' } })),
+          el('div', { class: 'hub-g-sub' }, subTxt));
+      }
+      var brief = el('section', { class: 'panel hub-panel hub-brief', 'data-act': 'home-brief-card' },
+        el('div', { class: 'hub-gauges' },
+          gauge('커리큘럼 진도', cPct + '%', (cr.taught_n || 0) + ' / ' + (cr.total_units || 261) + '단원' + (cr.unmapped_lessons ? ' · 즉흥 ' + cr.unmapped_lessons + '회' : ''), cPct, cPct >= 30 ? 'ok' : ''),
+          gauge('최근 14일 과제율', hwPct !== null ? hwPct + '%' : '기록 없음', '하루 목표 ' + (rm.daily_min || s.daily_min || 20) + '분 기준', hwPct || 0, hwPct !== null ? (hwPct >= 70 ? 'ok' : hwPct < 40 ? 'warn' : '') : ''),
+          gauge('14일 성취·기억률', achPct !== null ? achPct + '%' : '수집 중', rm.achieve_basis || '과제 · 단어 기억률 기준', achPct || 0, achPct !== null ? (achPct >= 75 ? 'ok' : achPct < 55 ? 'warn' : '') : '')),
+        (rm.focus || (wb.weak_words && wb.weak_words.length) || (s.know && s.know.length))
+          ? el('div', { class: 'hub-focus-box' },
+            rm.focus ? el('div', {}, el('b', {}, '오늘 수업 초점: '), rm.focus) : null,
+            (wb.weak_words && wb.weak_words.length) ? el('div', { style: { marginTop: '4px' } }, el('b', {}, '반복 오답 · 약점: '), wb.weak_words.join(', ')) : null,
+            (s.know && s.know.length) ? el('div', { style: { marginTop: '4px' } }, el('b', {}, '라포 · 알아 둘 것: '), list(s.know.slice(0, 2))) : null)
+          : null,
+        el('div', { class: 'hub-fresh-line', 'data-act': 'home-freshness' },
+          el('span', {}, '정본: ' + (fr.info_at || s.updated || '미상')),
+          el('span', {}, '단원: ' + (fr.units_at || '미상')),
+          el('span', {}, '로드맵: ' + (fr.roadmap_at || '미상')),
+          el('span', {}, '전사: ' + (fr.stt_at || s.stt_last || '없음'))));
+      main.appendChild(brief);
+
       // 열기 버튼 — 두 칸 격자
       var key = s.key ? encodeURIComponent(s.key) : '', isTest = T.isTest({ student_id: sid });
       var acts = el('div', { class: 'hub-acts', 'data-act': 'home-acts' });
@@ -250,15 +294,23 @@
       main.appendChild(acts);
       if (!s.board_t) main.appendChild(el('div', { class: 'tiny' }, '판 고정 링크 없음 — 클래스룸 표에 이 학생 코드가 없어요.'));
 
-      // 다음 수업안 · 지난 정리본
-      var docs = el('section', { class: 'panel hub-panel', 'data-act': 'home-docs' }, el('h2', {}, '수업 문서'));
-      if (s.plan) docs.appendChild(self.homeDocRow(sid, s.plan, '다음 수업안', s.plan.date && s.plan.date < ymdLocal(now) ? '지난 날짜 — 새 수업안이 아직 없어요' : ''));
-      else docs.appendChild(el('div', { class: 'small' }, '다음 수업안이 아직 없어요.'));
-      (s.docs || []).forEach(function (x) { docs.appendChild(self.homeDocRow(sid, x, '정리본', x.qa === 'AI 초안' ? 'AI 초안 · 확인 전' : '')); });
-      if (!(s.docs || []).length) docs.appendChild(el('div', { class: 'small' }, '정리본이 아직 없어요.'));
-      main.appendChild(docs);
+      // 심층 정보 3탭 전환 (과부하 방지: 모든 패널은 DOM에 유지하고 활성 탭만 표시)
+      var activeTab = self._hubTab || 'roadmap';
+      var tabBar = el('div', { class: 'hub-deep-tabs', role: 'tablist', 'data-act': 'home-deep-tabs' });
+      var pRoadmap = el('div', { class: 'hub-tab-panel', 'data-tab-panel': 'roadmap' });
+      var pWordDb = el('div', { class: 'hub-tab-panel', 'data-tab-panel': 'worddb' });
+      var pDocs = el('div', { class: 'hub-tab-panel', 'data-tab-panel': 'docs' });
 
-      // 앞으로의 과제
+      // [탭 1] 로드맵 · 과제 일정 · 학생 정보
+      var rmPanel = el('section', { class: 'panel hub-panel', 'data-act': 'home-roadmap' }, el('h2', {}, '로드맵 · 목표 · 분량 처방'));
+      var rmRow = function (k, v) { if (!v) return; rmPanel.appendChild(el('div', { class: 'hub-irow' }, el('span', { class: 'hub-ik' }, k), el('span', { class: 'hub-iv', lang: 'ko' }, v))); };
+      rmRow('목표', [PURPOSE[s.purpose] || s.purpose, rm.topik_target, rm.exam_date ? '시험 ' + rm.exam_date : ''].filter(Boolean).join(' · '));
+      rmRow('배운 단원', (cr.recent_units && cr.recent_units.length ? cr.recent_units.join(' → ') : '기록 없음') + (cr.unmapped_lessons ? ' (자유·즉흥 주제 ' + cr.unmapped_lessons + '회)' : ''));
+      rmRow('자동 처방', (rm.rules && rm.rules.length) ? rm.rules.join(' / ') : '현재 기준 유지');
+      if (rm.level_note) rmRow('레벨 메모', rm.level_note);
+      if (rm.teacher_note) rmRow('수업 관찰', rm.teacher_note);
+      pRoadmap.appendChild(rmPanel);
+
       var fut = s.future || [], nW = fut.filter(function (x) { return x.state === 'wait'; }).length;
       var hw = el('section', { class: 'panel hub-panel', 'data-act': 'home-future' }, el('h2', {}, '과제 ', el('span', { class: 'en' }, '앞으로 ' + fut.length + '일' + (nW ? ' · 승인 대기 ' + nW : ''))));
       var row = function (date, state, est, mode, lbl) {
@@ -273,9 +325,8 @@
         var cnt = {}; p7.forEach(function (x) { cnt[x.state] = (cnt[x.state] || 0) + 1; });
         hw.appendChild(el('div', { class: 'tiny hub-p7' }, '지난 ' + p7.length + '일: ' + Object.keys(cnt).map(function (k) { return (DAY[k] || [k])[0] + ' ' + cnt[k]; }).join(' · ')));
       }
-      main.appendChild(hw);
+      pRoadmap.appendChild(hw);
 
-      // 학생 정보 요약(정본 기본 정보)
       var info = el('section', { class: 'panel hub-panel', 'data-act': 'home-info' }, el('h2', {}, '학생 정보 ', el('span', { class: 'en' }, '정본 · ' + (s.updated || ''))));
       var irow = function (k, v) { if (!v) return; info.appendChild(el('div', { class: 'hub-irow' }, el('span', { class: 'hub-ik' }, k), el('span', { class: 'hub-iv', lang: 'ko' }, v))); };
       irow('목적', PURPOSE[s.purpose] || s.purpose);
@@ -284,7 +335,57 @@
       irow('알아 둘 것', list(s.know)); irow('피할 주제', list(s.avoid));
       (s.memo || []).forEach(function (m) { irow('메모 ' + (m[0] || '').slice(5).replace('-', '/'), m[1]); });
       if (info.childNodes.length === 1) info.appendChild(el('div', { class: 'small' }, '정본에 적힌 정보가 아직 없어요.'));
-      main.appendChild(info);
+      pRoadmap.appendChild(info);
+
+      // [탭 2] 수업 · 즉흥 단어 DB
+      var wSec = el('section', { class: 'panel hub-panel', 'data-act': 'home-word-db' },
+        el('h2', {}, '수업 · 즉흥 단어 DB ', el('span', { class: 'en' }, '누적 ' + (wb.total_class_words || 0) + '개')));
+      if (wb.weak_words && wb.weak_words.length) {
+        wSec.appendChild(el('div', { class: 'hub-w-date' },
+          el('b', {}, '과제에서 자꾸 틀리는 약점 단어'),
+          el('div', { class: 'hub-w-chips' }, wb.weak_words.map(function (w) { return el('span', { class: 'chip bad', lang: 'ko' }, w); }))));
+      }
+      if (wb.recent_dates && wb.recent_dates.length) {
+        wb.recent_dates.forEach(function (entry) {
+          wSec.appendChild(el('div', { class: 'hub-w-date' },
+            el('b', {}, md(entry.date) + ' 수업에서 다룬 표현'),
+            el('div', { class: 'hub-w-chips' }, (entry.words || []).map(function (w) { return el('span', { class: 'chip k', lang: 'ko' }, w); }))));
+        });
+      } else {
+        wSec.appendChild(el('div', { class: 'small', style: { marginTop: '6px' } }, '아직 수집된 즉흥·수업 단어 기록이 없어요.'));
+      }
+      pWordDb.appendChild(wSec);
+
+      // [탭 3] 수업 문서 (다음 수업안 · 지난 정리본)
+      var docs = el('section', { class: 'panel hub-panel', 'data-act': 'home-docs' }, el('h2', {}, '수업 문서'));
+      if (s.plan) docs.appendChild(self.homeDocRow(sid, s.plan, '다음 수업안', s.plan.date && s.plan.date < ymdLocal(now) ? '지난 날짜 — 새 수업안이 아직 없어요' : ''));
+      else docs.appendChild(el('div', { class: 'small' }, '다음 수업안이 아직 없어요.'));
+      (s.docs || []).forEach(function (x) { docs.appendChild(self.homeDocRow(sid, x, '정리본', x.qa === 'AI 초안' ? 'AI 초안 · 확인 전' : '')); });
+      if (!(s.docs || []).length) docs.appendChild(el('div', { class: 'small' }, '정리본이 아직 없어요.'));
+      pDocs.appendChild(docs);
+
+      var tabs = [
+        ['roadmap', '로드맵 · 과제·정보', pRoadmap],
+        ['worddb', '수업·즉흥 단어 DB', pWordDb],
+        ['docs', '수업 문서 (' + ((s.docs || []).length + (s.plan ? 1 : 0)) + ')', pDocs]
+      ];
+      function setTab(id) {
+        self._hubTab = id;
+        tabs.forEach(function (t) {
+          var on = t[0] === id;
+          t[2].hidden = !on;
+          var btnEl = tabBar.querySelector('[data-tab="' + t[0] + '"]');
+          if (btnEl) { btnEl.classList.toggle('on', on); btnEl.setAttribute('aria-selected', String(on)); }
+        });
+      }
+      tabs.forEach(function (t) {
+        tabBar.appendChild(el('button', { type: 'button', role: 'tab', class: 'hub-tab-btn', 'data-tab': t[0], onclick: function () { setTab(t[0]); } }, t[1]));
+      });
+      main.appendChild(tabBar);
+      main.appendChild(pRoadmap);
+      main.appendChild(pWordDb);
+      main.appendChild(pDocs);
+      setTab(activeTab);
     });
   };
   App.prototype.homeDocRow = function (sid, x, kind, note) {

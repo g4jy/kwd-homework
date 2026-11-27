@@ -405,13 +405,14 @@
       .then(function (j) { if (!j.ok) { var err = new Error(j.error || 'error'); err.server = true; throw err; } return j.data; });
   };
   /* T146q (선생님 A4) 활동 시간 = 화면이 보이고(visibilitychange) 마지막 손길(누름·입력·스크롤)이 2분 안인 동안만 5초씩 셈 [기본안].
+     종이/손글씨 단계(hand · ko_answer)는 폰을 건드리지 않고 공책에 쓰는 시간을 반영해 8분(480s)까지 유지.
      세트마다 이 기기에 저장(hw_act_<dayset_id>) → 끝 화면이 보여 주고 student.day_end 로 보냄 */
-  var ACT = { id: null, last: Date.now(), idle: 120000, tick: 5000 };
-  /* T146s 활동 시계 하나: 보이는 동안 + 마지막 손길 2분 안만 흐름(ms, 1부터). 끝 화면 활동 시간·문항 time_ms·dwell_ms 가 모두 이 시계 */
+  var ACT = { id: null, last: Date.now(), idle: 120000, handIdle: 480000, kind: '', tick: 5000 };
+  /* T146s 활동 시계 하나: 보이는 동안 + 마지막 손길 2분(손글씨 단계 8분) 안만 흐름(ms, 1부터). 끝 화면 활동 시간·문항 time_ms·dwell_ms 가 모두 이 시계 */
   var CLK = { acc: 1, at: Date.now(), vis: !document.hidden, day: 1 };
   function clk() {
-    var now = Date.now();
-    if (CLK.vis) { var end = Math.min(now, ACT.last + ACT.idle); if (end > CLK.at) CLK.acc += end - CLK.at; }
+    var now = Date.now(), lim = (ACT.kind === 'hand' || ACT.kind === 'ko_answer') ? ACT.handIdle : ACT.idle;
+    if (CLK.vis) { var end = Math.min(now, ACT.last + lim); if (end > CLK.at) CLK.acc += end - CLK.at; }
     CLK.at = now; return CLK.acc;
   }
   U.actMs = clk;
@@ -423,7 +424,17 @@
     var k = 'hw_act_' + ACT.id; U.store.set(k, (U.store.get(k, 0) || 0) + d / 1000);
   }, ACT.tick);
   U.activeDay = function (id) { CLK.day = clk(); ACT.id = id || null; ACT.last = Date.now(); };
+  U.activeKind = function (kind) { clk(); ACT.kind = kind || ''; ACT.last = Date.now(); };
   U.activeSec = function (id) { return Math.round(U.store.get('hw_act_' + id, 0) || 0); };
+  U.syncSharedProgress = function (patch) {
+    try {
+      var cur = U.store.get('kwd_shared_progress_v1', {}) || {};
+      for (var k in patch) if (Object.prototype.hasOwnProperty.call(patch, k)) cur[k] = patch[k];
+      cur.updated_at = Date.now();
+      U.store.set('kwd_shared_progress_v1', cur);
+    } catch (e) { /* 무시 */ }
+  };
+  U.readSharedProgress = function () { return U.store.get('kwd_shared_progress_v1', {}) || {}; };
   /** 오프라인 대기열: 제출을 먼저 저장, 연결되면 보냄. client_id 로 중복 방지 */
   /** 선생님 미리 보기 (student.html?k=…#preview): 보기만, 저장·열람 기록 안 함 */
   U.PREVIEW = /(^|[#&])preview\b/.test(location.hash || '');
