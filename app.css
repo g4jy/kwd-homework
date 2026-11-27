@@ -1017,6 +1017,11 @@ div.hub-lesson, div.hub-rec { cursor: default; }
 /* T117 로딩 10초 넘음: 안내 + 다시 시도 */
 .load-slow { margin: 16px 0 0; padding: 16px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px; text-align: center; }
 .load-slow p { margin: 0 0 12px; font-size: 15px; color: var(--ink); }
+.load-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 10px; font-size: 15px; color: var(--ink); text-align: left; }
+.load-pct { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); }
+.load-bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.load-bar-fill { height: 100%; width: 0; border-radius: 999px; background: var(--accent); transition: width .25s linear; }
+@media (prefers-reduced-motion: reduce) { .load-bar-fill { transition: none; } }
 /* T126c 녹음 소리 없음·마이크 바쁨 안내, 수업 중 안내 줄 = 녹음 줄 아래 전체 폭 */
 .recbox .rec-silent, .recbox [data-act="rec-class"] { flex-basis: 100%; }
 .recbox .rec-silent { color: var(--bad); font-weight: 600; }

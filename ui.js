@@ -367,17 +367,28 @@
   U.callLimit = function (a) { return /^student\.(today|hub|history|progress|lessons|check|ver|words)$/.test(a) ? 90000 : /^student\./.test(a) ? 180000 : 0; };
   function send0Done(run, tm, ok, no) { run.then(function (x) { clearTimeout(tm); ok(x); }, function (e) { clearTimeout(tm); no(e); }); }
   /* T117 로딩 모양이 10초 넘게 남으면 그 아래에 안내 + [다시 시도]. 부르던 호출은 끊지 않음(처음 여는 날은 서버가 15~40초 걸림) */
-  U.SLOW_MS = 10000;
+  U.SLOW_MS = 1200;
+  /* 11/27 선생님: '다시 시도' 단추 대신 얼마나 됐는지 퍼센트로. 1.2초 넘게 로딩이 남으면 막대 + 퍼센트(서버 평소 시간 기준 어림, 끝나면 사라짐).
+     부르던 호출은 끊지 않음. 실패하면 각 화면의 오류 안내가 따로 뜸. retry 는 예전 호출 꼴을 지키려고 받기만 함. */
+  U.SLOW_EXPECT_MS = 20000;
+  U.slowPct = function (ms) { return Math.max(1, Math.min(99, Math.round(100 * (1 - Math.exp(-ms / (U.SLOW_EXPECT_MS / 2.3)))))); };   // 20초에 90%, 그 뒤 천천히 99%까지
   U.slowWatch = function (root, retry, sel) {
-    var box = null, tm = setTimeout(function () {
+    var box = null, iv = null, t0 = Date.now(), tm = setTimeout(function () {
       var all = root.querySelectorAll(sel || '[data-act="loading"],.loading,.hub-skel'), host = all[all.length - 1];
       if (!host || root.querySelector('[data-act="load-slow"]')) return;
-      box = U.el('div', { class: 'load-slow', role: 'alert', 'data-act': 'load-slow' },
-        U.el('p', {}, U.tx('This is taking longer than usual. Please wait a little more, or try again.', '평소보다 오래 걸리고 있어요. 조금 더 기다리거나 다시 시도해 주세요.')),
-        U.el('button', { class: 'btn primary', type: 'button', 'data-act': 'slow-retry', onclick: function () { stop(); retry(); } }, U.tx('Try again', '다시 시도')));
+      var fill = U.el('div', { class: 'load-bar-fill' }), num = U.el('span', { class: 'load-pct', 'data-act': 'load-pct' }, '0%'), line = U.el('span', {}, U.tx('Loading your homework…', '과제를 불러오고 있어요…'));
+      box = U.el('div', { class: 'load-slow', role: 'status', 'aria-live': 'polite', 'data-act': 'load-slow' },
+        U.el('div', { class: 'load-row' }, line, num),
+        U.el('div', { class: 'load-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0' }, fill));
+      var paint = function () {
+        var ms = Date.now() - t0, p = U.slowPct(ms);
+        num.textContent = p + '%'; fill.style.width = p + '%'; fill.parentNode.setAttribute('aria-valuenow', String(p));
+        if (ms > 30000) line.textContent = U.tx('Almost there…', '거의 다 됐어요…');
+      };
+      paint(); iv = setInterval(paint, 250);
       if (host.getAttribute('data-act') === 'loading') host.appendChild(box); else root.appendChild(box);
     }, U.SLOW_MS);
-    function stop() { clearTimeout(tm); if (box && box.parentNode) box.parentNode.removeChild(box); box = null; }
+    function stop() { clearTimeout(tm); clearInterval(iv); if (box && box.parentNode) box.parentNode.removeChild(box); box = null; }
     return stop;
   };
   U.call0 = function (action, payload) {

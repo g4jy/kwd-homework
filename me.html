@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#F6F7FB">
 <link rel="manifest" href="manifest-me.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="app.css?v=20261127021546">
+<link rel="stylesheet" href="app.css?v=20261127230640">
 <style>
 /* T109 학생 허브: 링크 하나 → 오늘 과제 · 수업(화이트보드) · 단어 카드. 토큰은 app.css :root (앱 디자인 언어) */
 .hub { max-width: 480px; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 20px 40px; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
@@ -55,8 +55,8 @@
 </head>
 <body>
 <div id="app" class="hub" aria-live="polite"></div>
-<script src="config.js?v=20261127021546"></script>
-<script src="ui.js?v=20261127021546"></script>
+<script src="config.js?v=20261127230640"></script>
+<script src="ui.js?v=20261127230640"></script>
 <script>
 (function () {
   'use strict';
@@ -124,8 +124,25 @@
     return '<a class="hub-tile' + (o.st ? ' ' + o.st : '') + (dis ? ' off' : '') + '" data-act="' + o.act + '"' + (o.st ? ' data-st="' + o.st + '"' : '') + (dis ? ' aria-disabled="true"' : ' href="' + esc(o.href) + '"') + '>' +
       '<span class="hub-ic">' + svg(o.icon) + '</span><span class="hub-t"><b>' + esc(o.title) + '</b><span>' + esc(o.meta) + '</span>' + (o.extra || '') + '</span>' + right + '</a>';
   }
+  /* 11/27 수시 갱신 학생: 서버 허브 값은 '달력 오늘' 세트만 봐서, 지금 받을 세트가 있어도 'Opens soon' 으로 나왔다(서버는 클라우드에서 못 고침).
+     과제 화면이 쓰는 기기 저장본(지금 세트)이 있으면 그것으로 숫자를 낸다. 없거나 수시 갱신이 아니면 서버 값 그대로. */
+  var lastHub = null;
+  function curDay() {
+    try {
+      var dc = U && U.dayCache ? U.dayCache.get(k) : null;
+      if (!dc || dc.d.schedule_mode !== 'on_demand' || !(U.dayCache.usable ? U.dayCache.usable(dc) : false)) return null;
+      var day = dc.d.day;
+      if (!day || !day.tasks || !day.tasks.length || day.waiting_review) return null;
+      var left = day.tasks.filter(function (x) { return x.status === 'todo' || x.status === 'doing'; });
+      return { n_tasks: day.tasks.length, n_left: left.length, min_left: Math.round(left.reduce(function (a, x) { return a + (Number(x.est) || 0); }, 0)), rest: !!day.skipped_at,
+        started: left.length < day.tasks.length || left.some(function (x) { return x.status === 'doing'; }) };
+    } catch (e) { return null; }
+  }
   function render(d) {
-    var t = d.today || {}, hw, st = '', extra = '', nOv = Number(t.n_overdue) || 0;
+    lastHub = d;
+    var t = d.today || {}, cd = curDay();
+    if (cd) { cd.n_overdue = t.n_overdue; t = cd; }
+    var hw, st = '', extra = '', nOv = Number(t.n_overdue) || 0;
     if (t.rest) hw = 'Day off today';
     else if (!t.n_tasks) hw = 'Opens soon';
     else if (!t.n_left) { hw = 'All done today'; st = 'done'; }
@@ -237,7 +254,7 @@
         if (!h || drew || hubOk) return;
         drew = true; c = { d: h }; slowStop(); render(h);
       });
-      if (!dayReady()) U.snap.today(k).then(function (sc) { if (sc && !dayReady()) { U.dayCache.set(k, sc.d); var x = U.dayCache.get(k); if (x) { x.at = sc.at; put(U.dayCache.name(k), x); } } });
+      if (!dayReady()) U.snap.today(k).then(function (sc) { if (sc && !dayReady()) { U.dayCache.set(k, sc.d); var x = U.dayCache.get(k); if (x) { x.at = sc.at; put(U.dayCache.name(k), x); } if (lastHub) render(lastHub); } });
       U.snap.refresh(k);
     }
     pend++;
@@ -254,7 +271,7 @@
     });
     if (U && U.dayCache) {
       var dc = U.dayCache.get(k);
-      if (!pf && !(U.dayCache.usable ? U.dayCache.usable(dc) : dc && dc.d.day.local_date === U.todayIn(dc.d.student.tz))) pf = call('student.today').then(function (d) { if (d && d.day && d.student) U.dayCache.set(k, d); }, function () {}).then(function () { pf = null; });
+      if (!pf && !(U.dayCache.usable ? U.dayCache.usable(dc) : dc && dc.d.day.local_date === U.todayIn(dc.d.student.tz))) pf = call('student.today').then(function (d) { if (d && d.day && d.student) { U.dayCache.set(k, d); if (lastHub) render(lastHub); } }, function () {}).then(function () { pf = null; });
       if (!PREVIEW && U.Outbox) { try { new U.Outbox('s_' + k).flush(); } catch (e) { /* 다음에 과제 화면에서 */ } }
     }
   }
